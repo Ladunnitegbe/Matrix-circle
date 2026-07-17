@@ -1,5 +1,4 @@
-import dotenv from "dotenv";
-dotenv.config();
+import "dotenv/config";
 
 import app from "./app";
 import connectDB from "./config/db";
@@ -28,6 +27,7 @@ const startServer = async (): Promise<void> => {
       });
       setTimeout(() => {
         console.error("Forcing shutdown after 10 seconds");
+        process.exit(1);
       }, 10000);
     };
     process.on("SIGTERM", shutdown);

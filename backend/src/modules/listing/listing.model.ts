@@ -1,0 +1,59 @@
+import { Schema, model, Document, Types } from "mongoose";
+
+export type ListingState = "active" | "claimed" | "picked_up" | "expired_unclaimed" | "expired_no_show";
+export type ListingCategory = "cooked_meal" | "baked_goods" | "raw_produce" | "free_donation";
+
+export interface IListing extends Document {
+  vendorId: Types.ObjectId;
+  itemDescription: string;
+  quantity: number;
+  price: number | "free";
+  category: ListingCategory;
+  pickupByTime: Date;
+  location: { type: "Point"; coordinates: [number, number] };
+  state: ListingState;
+  claim?: {
+    claimedBy: Types.ObjectId;
+    claimantType: "individual" | "charity";
+    claimedAt: Date;
+    holdExpiresAt: Date;
+  };
+  createdAt: Date;
+}
+
+const listingSchema = new Schema<IListing>(
+  {
+    vendorId: { type: Schema.Types.ObjectId, ref: "Vendor", required: true },
+    itemDescription: { type: String, required: true, trim: true },
+    quantity: { type: Number, required: true, min: 1 },
+    price: { type: Schema.Types.Mixed, default: "free" },
+    category: {
+      type: String,
+      enum: ["cooked_meal", "baked_goods", "raw_produce", "free_donation"],
+      required: true,
+    },
+    pickupByTime: { type: Date, required: true },
+    location: {
+      type: { type: String, enum: ["Point"], required: true },
+      coordinates: { type: [Number], required: true },
+    },
+    state: {
+      type: String,
+      enum: ["active", "claimed", "picked_up", "expired_unclaimed", "expired_no_show"],
+      default: "active",
+    },
+    claim: {
+      claimedBy: { type: Schema.Types.ObjectId },
+      claimantType: { type: String, enum: ["individual", "charity"] },
+      claimedAt: { type: Date },
+      holdExpiresAt: { type: Date },
+    },
+  },
+  { timestamps: true }
+);
+
+listingSchema.index({ location: "2dsphere" });
+listingSchema.index({ state: 1, pickupByTime: 1 });
+listingSchema.index({ state: 1, "claim.holdExpiresAt": 1 });
+
+export const Listing = model<IListing>("Listing", listingSchema);
