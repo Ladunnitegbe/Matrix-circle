@@ -1,0 +1,45 @@
+.vendor-listing-header {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 19px;
+  color: var(--green-900);
+  padding: 2px 2px 14px;
+}
+
+.vendor-listing-success {
+  text-align: center;
+  padding: 36px 10px 10px;
+}
+
+.vendor-listing-success-badge {
+  width: 74px;
+  height: 74px;
+  margin: 0 auto 18px;
+  border-radius: 24px;
+  background: var(--green-100);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vendor-listing-success h3 {
+  font-family: var(--font-display);
+  font-size: 17px;
+  margin: 0 0 6px;
+  color: var(--green-900);
+}
+
+.vendor-listing-success p {
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.55;
+  max-width: 260px;
+  margin: 0 auto 18px;
+}
+
+.vendor-listing-footnote {
+  text-align: center;
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin-top: 10px;
+}

@@ -1,16 +1,64 @@
-# React + Vite
+# FoodShare — React Component Library
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Implements the FoodShare design system in React + vanilla CSS. Every
+component (and every screen) owns its own `.css` file — nothing lives in
+`index.css` or `App.css` beyond design tokens and a minimal reset.
 
-Currently, two official plugins are available:
+## What's included
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+**4 of the 8 MVP flow screens are fully implemented as live, stateful React
+screens (50%)** — the Must-Have core loop: post a listing, see it on the
+feed, claim it and hold it, and track it on the vendor dashboard.
 
-## React Compiler
+- Vendor → New listing (US-1)
+- Vendor → Dashboard (US-3)
+- Resident → Discovery feed + category filter (US-4 / US-5)
+- Resident → Claim & hold, with a real ticking countdown (US-6 / US-7)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Each screen exposes its loading / empty / success / error (HTTP-response)
+states through the pill switcher above the phone mock, per the design
+system's server-response-state requirement.
 
-## Expanding the Oxlint configuration
+## Running it yourself
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+```
+npm install
+npm run dev       # local dev server
+npm run build     # static production build → dist/
+```
+
+## Viewing the live demo without installing anything
+
+
+
+## Folder structure
+
+```
+src/
+  tokens.css                # design tokens + reset (the only global CSS)
+  App.jsx                   # composition only — no CSS file of its own
+  components/
+    Button/Button.jsx + .css
+    Chip/Chip.jsx + .css
+    Card/Card.jsx + .css
+    TimeRing/TimeRing.jsx + .css        (signature ring, small)
+    CountdownRing/CountdownRing.jsx + .css  (signature ring, live countdown)
+    ListingCard/ListingCard.jsx + .css
+    FormField/FormField.jsx + .css
+    Banner/Banner.jsx + .css
+    StatCard/StatCard.jsx + .css
+    StatusTag/StatusTag.jsx + .css
+    EmptyState/EmptyState.jsx + .css
+    FullError/FullError.jsx + .css
+    Skeleton/Skeleton.jsx + .css
+    VerifiedBadge/VerifiedBadge.jsx + .css
+    Icon/Icon.jsx
+    Sidebar/, StateSwitcher/, StageHeader/, Stage/, Layout/, PhoneFrame/, StatusBar/
+       (demo-shell components, each with its own .css)
+  screens/
+    VendorListingScreen/
+    VendorDashboardScreen/
+    DiscoveryFeedScreen/
+    ClaimHoldScreen/
+  data/listings.js            # sample data used across screens
+```

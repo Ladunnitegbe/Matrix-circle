@@ -1,0 +1,14 @@
+.skeleton {
+  background: linear-gradient(90deg, var(--paper-sunk) 25%, #e8e3d2 37%, var(--paper-sunk) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}

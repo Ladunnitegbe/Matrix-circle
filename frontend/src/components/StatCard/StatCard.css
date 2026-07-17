@@ -1,0 +1,28 @@
+.stat-card {
+  flex: 1;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.stat-card-num {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.stat-card-green {
+  color: var(--green-700);
+}
+
+.stat-card-orange {
+  color: var(--orange-600);
+}
+
+.stat-card-label {
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-weight: 600;
+  margin-top: 2px;
+}
