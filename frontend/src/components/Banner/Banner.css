@@ -1,0 +1,27 @@
+.banner {
+  border-radius: 13px;
+  padding: 12px 13px;
+  font-size: 12.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-bottom: 14px;
+  line-height: 1.45;
+}
+
+.banner-error,
+.banner-offline {
+  background: var(--red-100);
+  color: var(--red-600);
+}
+
+.banner-success {
+  background: var(--green-100);
+  color: var(--green-700);
+}
+
+.banner-info {
+  background: var(--orange-050);
+  color: var(--orange-700);
+}
