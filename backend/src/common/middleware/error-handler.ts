@@ -8,7 +8,7 @@ const errorHandler = (
   res: Response,
   _next: NextFunction,
 ): Response => {
-  console.log(err);
+  console.error(err);
 
   if (err instanceof CustomAPIError) {
     return res.status(err.statusCode).json({

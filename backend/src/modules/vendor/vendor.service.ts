@@ -1,4 +1,6 @@
+import { ClientSession } from "mongoose";
 import NotFoundError from "../../common/error/not-found-error";
+import { Listing } from "../listing/listing.model";
 import { Vendor } from "./vendor.model";
 
 type CreateVendorProfileData = {
@@ -7,12 +9,23 @@ type CreateVendorProfileData = {
   coordinates: [number, number];
 };
 
-const createVendorProfile = async (data: CreateVendorProfileData) => {
-  return Vendor.create({
-    accountId: data.accountId,
-    businessName: data.businessName,
-    location: { type: "Point", coordinates: data.coordinates },
-  });
+const createVendorProfile = async (
+  data: CreateVendorProfileData,
+  session?: ClientSession
+) => {
+  return Vendor.create(
+    [
+      {
+        accountId: data.accountId,
+        businessName: data.businessName,
+        location: {
+          type: "Point",
+          coordinates: data.coordinates,
+        },
+      },
+    ],
+    { session }
+  );
 };
 
 const getProfileByAccountId = async (accountId: string) => {
@@ -21,4 +34,12 @@ const getProfileByAccountId = async (accountId: string) => {
   return vendor;
 };
 
-export { createVendorProfile, getProfileByAccountId };
+const getVendorDashboard = async (vendorId: string) => {
+  const [claimed, discarded] = await Promise.all([
+    Listing.countDocuments({ vendorId, state: "picked_up" }),
+    Listing.countDocuments({ vendorId, state: { $in: ["expired_unclaimed", "expired_no_show"] } }),
+  ]);
+  return { claimed, discarded };
+};
+
+export { createVendorProfile, getProfileByAccountId, getVendorDashboard };

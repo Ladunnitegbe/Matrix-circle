@@ -7,4 +7,9 @@ const getMyProfile = asyncWrapper(async (req: Request, res: Response) => {
   res.status(200).json({ success: true, user });
 });
 
-export { getMyProfile };
+const updateMyLocation = asyncWrapper(async (req: Request, res: Response) => {
+  const user = await userService.updateLocation(req.user!.id, req.body.coordinates);
+  res.status(200).json({ success: true, user });
+});
+
+export { getMyProfile, updateMyLocation };

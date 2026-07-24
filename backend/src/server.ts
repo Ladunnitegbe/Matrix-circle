@@ -3,12 +3,14 @@ import "dotenv/config";
 import app from "./app";
 import connectDB from "./config/db";
 import mongoose from "mongoose";
+import { startExpiryJob } from "./modules/jobs/expireListings.job";
 
 const PORT = process.env.PORT || 5000;
 
 const startServer = async (): Promise<void> => {
   try {
     await connectDB();
+    startExpiryJob();
 
     const server = app.listen(PORT, () => {
       console.log(`Server listening to port: ${PORT}`);

@@ -16,7 +16,7 @@ const authenticateUser = (req: Request, res: Response, next: NextFunction) => {
   const decoded = verifyAccessToken(token);
 
   req.user = {
-    id: decoded.userId,
+    id: decoded.accountId,
     role: decoded.role,
   };
 

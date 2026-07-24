@@ -1,100 +1,268 @@
-# Backend API for Matrix Circle
+# FoodShare Backend API (Matrix Circle)
 
-This backend provides the API used by the frontend for authentication, user/vendor profiles, and food listings.
+Backend API powering the **FoodShare** application developed during the Orange Internship Program.
 
-## Tech stack
+FoodShare connects food vendors with nearby individuals and verified charities by allowing vendors to publish surplus food listings that can be claimed before they expire.
 
-- Node.js + TypeScript
-- Express
-- MongoDB + Mongoose
-- JWT for authentication
-- Zod for validation
-- CORS, rate limiting, sanitization, and error handling middleware
+---
 
-## Getting started
+# Tech Stack
 
-### 1. Install dependencies
+- Node.js
+- TypeScript
+- Express.js
+- MongoDB
+- Mongoose
+- JWT Authentication
+- Zod Validation
+- Nodemailer
+- Node Cron
+- Helmet
+- CORS
+- Morgan
+- express-rate-limit
+- mongo-sanitize
+- xss
 
-From the backend folder:
+---
+
+# Features
+
+- JWT Authentication
+- Vendor Registration
+- Individual Registration
+- Charity Registration
+- Vendor Dashboard
+- Charity Verification
+- Geo-location Listings
+- Nearby Listing Discovery
+- Listing Claim & Reservation
+- Pickup Confirmation
+- Automatic Listing Expiry
+- Email Notifications
+- Input Validation
+- Rate Limiting
+- MongoDB Transactions
+
+---
+
+# Getting Started
+
+## Install dependencies
 
 ```bash
 npm install
 ```
 
-### 2. Create environment variables
+---
 
-Create a `.env` file in the backend folder with:
+## Environment Variables
+
+Create a `.env` file.
 
 ```env
 PORT=5000
-MONGO_URL=mongodb://localhost:27017/matrix-circle
+
+MONGO_URL=
+
+ACCESS_TOKEN_SECRET=
+ACCESS_TOKEN_EXPIRES=7d
+
+BCRYPT_SALT_ROUNDS=10
+
+SMTP_HOST=
+SMTP_PORT=
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM=
+
+ADMIN_EMAIL=
+ADMIN_PHONE=
+ADMIN_PASSWORD=
+
+ALLOWED_ORIGIN=http://localhost:5173
 ```
 
-### 3. Run the server
+---
+
+## Start Development Server
 
 ```bash
 npm run dev
 ```
 
-The API will be available at:
+Server runs on
 
-```text
+```
 http://localhost:5000
 ```
 
-## Base URL
+---
 
-All routes are prefixed with `/api`.
+# Authentication
+
+Protected endpoints require
+
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+---
+
+# API Routes
 
 ## Authentication
 
-Most protected routes require a Bearer token in the `Authorization` header:
+| Method | Endpoint | Description |
+|---------|----------|-------------|
+| POST | /api/auth/register | Register account |
+| POST | /api/auth/login | Login |
 
-```http
-Authorization: Bearer <token>
-```
+---
 
-The token is returned from the auth endpoints after successful login or registration.
+## Users
 
-## Current API endpoints
+| Method | Endpoint |
+|---------|----------|
+| GET | /api/users/me |
+| PATCH | /api/users/me/location |
 
-### Auth
+---
 
-- `POST /api/auth/register` — create an account and receive a JWT
-- `POST /api/auth/login` — sign in and receive a JWT
+## Vendors
 
-### User
+| Method | Endpoint |
+|---------|----------|
+| GET | /api/vendors/me |
+| GET | /api/vendors/dashboard |
 
-- `GET /api/users/me` — fetch the authenticated user's profile
+---
 
-### Vendor
+## Listings
 
-- `GET /api/vendors/me` — fetch the authenticated vendor profile
+| Method | Endpoint |
+|---------|----------|
+| POST | /api/listings |
+| GET | /api/listings |
+| GET | /api/listings/:id |
 
-### Listings
+---
 
-- `POST /api/listings` — create a listing (vendor only)
-- `GET /api/listings` — fetch listings feed
-- `GET /api/listings/:id` — fetch one listing by ID
+## Claims
 
-## Response format
+| Method | Endpoint |
+|---------|----------|
+| PATCH | /api/listings/:id/claim |
+| PATCH | /api/listings/:id/confirm-pickup |
 
-Most successful responses follow this pattern:
+---
 
+## Admin
+
+| Method | Endpoint |
+|---------|----------|
+| PATCH | /api/admin/charities/:userId/verify |
+
+---
+
+# Response Format
+
+There is no wrapping `data` object — response fields sit directly alongside `success`, and the field names vary per endpoint.
+
+**Successful response (example — register/login):**
 ```json
 {
   "success": true,
-  "msg": "...",
-  "data": {}
+  "msg": "Account created successfully",
+  "token": "...",
+  "account": { "id": "...", "email": "...", "role": "..." }
 }
 ```
 
-Authentication responses typically include a `token` field.
+**Successful response (example — profile fetch):**
+```json
+{
+  "success": true,
+  "user": { "...": "profile fields" }
+}
+```
 
-## Notes for frontend developers
+**Generic error (auth, permission, not found):**
+```json
+{
+  "success": false,
+  "msg": "Invalid credentials"
+}
+```
 
-- Public routes are auth endpoints only.
-- Protected routes require a valid JWT.
-- Vendor-only actions are restricted by role.
-- Validation errors and authentication errors are returned with appropriate HTTP status codes.
-- The backend is currently using MongoDB with Mongoose models for accounts, users, vendors, and listings.
+**Validation error:**
+```json
+{
+  "success": false,
+  "msg": "Validation failed",
+  "errors": [
+    { "field": "body.email", "message": "Invalid email" }
+  ]
+}
+```
+
+---
+
+# Security
+
+The API includes
+
+- JWT Authentication
+- Role-based Authorization
+- MongoDB Transactions
+- Request Validation
+- Input Sanitization
+- XSS Protection
+- Mongo Sanitization
+- Rate Limiting
+- Helmet Security Headers
+
+---
+
+# Background Jobs
+
+Node Cron runs every minute to
+
+- Expire old listings
+- Release expired claims
+- Mark no-show pickups
+
+---
+
+# Notification System
+
+Emails are sent for
+
+- Charity Registration
+- Charity Verification
+- Nearby Listings
+
+---
+
+# Database
+
+MongoDB + Mongoose
+
+GeoJSON is used for location-based searching.
+
+Indexes
+
+- 2dsphere indexes
+- Claim expiry indexes
+- Listing state indexes
+
+---
+
+# Future Improvements
+
+- Redis Queue (BullMQ)
+- Push Notifications
+- WebSockets
+- File Uploads
+- Payment Integration
+- Delivery Tracking

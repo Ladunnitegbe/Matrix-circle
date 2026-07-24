@@ -20,7 +20,7 @@ const feed = asyncWrapper(async (req: Request, res: Response) => {
 });
 
 const getOne = asyncWrapper(async (req: Request, res: Response) => {
-  const listing = await listingService.getListingById(req.params.id);
+  const listing = await listingService.getListingById(req.params.id as string);
   return res.status(200).json({ success: true, listing });
 });
 

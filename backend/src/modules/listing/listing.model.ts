@@ -43,7 +43,7 @@ const listingSchema = new Schema<IListing>(
       default: "active",
     },
     claim: {
-      claimedBy: { type: Schema.Types.ObjectId },
+      claimedBy: { type: Schema.Types.ObjectId, ref: "User" },
       claimantType: { type: String, enum: ["individual", "charity"] },
       claimedAt: { type: Date },
       holdExpiresAt: { type: Date },

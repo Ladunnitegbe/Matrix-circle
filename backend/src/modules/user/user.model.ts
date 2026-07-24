@@ -3,6 +3,7 @@ import { Schema, model, Document, Types } from "mongoose";
 export type AccountType = "individual" | "charity";
 
 export interface IUser extends Document {
+  id: string;
   accountId: Types.ObjectId;
   accountType: AccountType;
   name: string;
@@ -20,7 +21,7 @@ const userSchema = new Schema<IUser>(
     accountId: { type: Schema.Types.ObjectId, ref: "Account", required: true, unique: true },
     accountType: { type: String, enum: ["individual", "charity"], required: true },
     name: { type: String, required: true, trim: true },
-    charityRegNumber: { type: String, trim: true },
+    charityRegNumber: { type: String, trim: true, unique: true, sparse: true },
     charityVerifiedAt: { type: Date, default: null },
     location: {
       type: { type: String, enum: ["Point"] },

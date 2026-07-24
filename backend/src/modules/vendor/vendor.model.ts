@@ -1,6 +1,7 @@
 import { Schema, model, Document, Types } from "mongoose";
 
 export interface IVendor extends Document {
+  id: string;
   accountId: Types.ObjectId;
   businessName: string;
   location: {

@@ -2,6 +2,9 @@ import { FilterQuery } from "mongoose";
 import { Listing, IListing, ListingCategory } from "./listing.model";
 import { getProfileByAccountId } from "../vendor/vendor.service";
 import NotFoundError from "../../common/error/not-found-error";
+import { newListingNearbyTemplate } from "../notification/email-templates";
+import { findUsersNearLocation } from "../user/user.service";
+import { sendEmail } from "../notification/notification.service";
 
 type CreateListingInput = {
   itemDescription: string;
@@ -12,10 +15,22 @@ type CreateListingInput = {
   coordinates: [number, number];
 };
 
+const notifyNearbyUsers = async (listing: IListing) => {
+  try {
+    const nearbyUsers = await findUsersNearLocation(listing.location.coordinates, 5);
+    for (const user of nearbyUsers) {
+      const { subject, html } = newListingNearbyTemplate(user.name, listing.itemDescription);
+      await sendEmail(user.email, subject, html); 
+    }
+  } catch (err) {
+    console.error("Failed to notify nearby users:", err);
+  }
+};
+
 const createListing = async (accountId: string, input: CreateListingInput) => {
   const vendor = await getProfileByAccountId(accountId); 
 
-  return Listing.create({
+  const listing = await Listing.create({
     vendorId: vendor.id,
     itemDescription: input.itemDescription,
     quantity: input.quantity,
@@ -24,6 +39,8 @@ const createListing = async (accountId: string, input: CreateListingInput) => {
     pickupByTime: input.pickupByTime,
     location: { type: "Point", coordinates: input.coordinates },
   });
+  notifyNearbyUsers(listing);
+  return listing;
 };
 
 type FeedFilters = {

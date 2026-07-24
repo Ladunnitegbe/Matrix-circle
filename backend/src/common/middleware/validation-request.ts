@@ -38,13 +38,13 @@ const validateRequest = (schema: RequestValidationSchema): RequestHandler => {
     }
 
     if (schema.query) {
-      const result = schema.query.safeParse(req.query);
-      if (!result.success) {
-        issues.push(...formatIssues(result.error.issues));
-      } else {
-        req.query = result.data as Request["query"];
-      }
-    }
+  const result = schema.query.safeParse(req.sanitizedQuery ?? req.query);
+  if (!result.success) {
+    issues.push(...formatIssues(result.error.issues));
+  } else {
+    req.sanitizedQuery = result.data as Record<string, unknown>; 
+  }
+}
 
     if (issues.length > 0) {
       throw new ValidationError(issues);
