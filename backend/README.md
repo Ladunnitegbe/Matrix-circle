@@ -1,52 +1,21 @@
-# FoodShare Backend API (Matrix Circle)
+# FoodShare Backend Guide
 
-Backend API powering the **FoodShare** application developed during the Orange Internship Program.
+This is a beginner-friendly guide to the backend API for the FoodShare project.
 
-FoodShare connects food vendors with nearby individuals and verified charities by allowing vendors to publish surplus food listings that can be claimed before they expire.
-
----
-
-# Tech Stack
-
-- Node.js
-- TypeScript
-- Express.js
-- MongoDB
-- Mongoose
-- JWT Authentication
-- Zod Validation
-- Nodemailer
-- Node Cron
-- Helmet
-- CORS
-- Morgan
-- express-rate-limit
-- mongo-sanitize
-- xss
+The backend powers the core features of the app, including user authentication, food listings, claims, pickups, and admin actions.
 
 ---
 
-# Features
+## What you need to run it
 
-- JWT Authentication
-- Vendor Registration
-- Individual Registration
-- Charity Registration
-- Vendor Dashboard
-- Charity Verification
-- Geo-location Listings
-- Nearby Listing Discovery
-- Listing Claim & Reservation
-- Pickup Confirmation
-- Automatic Listing Expiry
-- Email Notifications
-- Input Validation
-- Rate Limiting
-- MongoDB Transactions
+Before starting, make sure you have:
+
+- Node.js installed
+- npm available
+- a MongoDB connection string
+- a valid environment configuration
 
 ---
-
-# Getting Started
 
 ## Install dependencies
 
@@ -56,197 +25,163 @@ npm install
 
 ---
 
-## Environment Variables
+## Environment variables
 
-Create a `.env` file.
+Create a .env file with the following values:
 
 ```env
 PORT=5000
-
 MONGO_URL=
-
 ACCESS_TOKEN_SECRET=
 ACCESS_TOKEN_EXPIRES=7d
-
 BCRYPT_SALT_ROUNDS=10
-
+ALLOWED_ORIGIN=http://localhost:5173
 SMTP_HOST=
 SMTP_PORT=
 SMTP_USER=
 SMTP_PASS=
 SMTP_FROM=
-
 ADMIN_EMAIL=
 ADMIN_PHONE=
 ADMIN_PASSWORD=
-
-ALLOWED_ORIGIN=http://localhost:5173
 ```
 
 ---
 
-## Start Development Server
+## Start the server
 
 ```bash
 npm run dev
 ```
 
-Server runs on
+The API will be available at:
 
-```
+```text
 http://localhost:5000
 ```
 
 ---
 
-# Authentication
+## Main API base URL
 
-Protected endpoints require
-
-```
-Authorization: Bearer <JWT_TOKEN>
+```text
+/api
 ```
 
 ---
-
-# API Routes
 
 ## Authentication
 
-| Method | Endpoint | Description |
-|---------|----------|-------------|
-| POST | /api/auth/register | Register account |
-| POST | /api/auth/login | Login |
+### Register
+
+```http
+POST /api/auth/register
+```
+
+Required fields:
+
+- email: valid email
+- phoneNumber: 10 to 15 characters
+- password: at least 8 characters
+- role: individual, charity, or vendor
+- name: at least 2 characters
+
+Optional fields:
+
+- charityRegNumber: minimum 3 characters
+- businessName: minimum 2 characters
+- coordinates: [longitude, latitude]
+
+### Login
+
+```http
+POST /api/auth/login
+```
+
+Required fields:
+
+- email: valid email
+- password: cannot be empty
+
+Successful login returns a JWT token that must be used for protected routes.
 
 ---
 
-## Users
+## Protected routes
 
-| Method | Endpoint |
-|---------|----------|
-| GET | /api/users/me |
-| PATCH | /api/users/me/location |
+For protected routes, include this header:
 
----
+```http
+Authorization: Bearer <JWT_TOKEN>
+```
 
-## Vendors
+Examples of protected routes:
 
-| Method | Endpoint |
-|---------|----------|
-| GET | /api/vendors/me |
-| GET | /api/vendors/dashboard |
-
----
-
-## Listings
-
-| Method | Endpoint |
-|---------|----------|
-| POST | /api/listings |
-| GET | /api/listings |
-| GET | /api/listings/:id |
+- GET /api/users/me
+- PATCH /api/users/me/location
+- GET /api/vendors/me
+- GET /api/vendors/dashboard
+- POST /api/listings
+- GET /api/listings
+- PATCH /api/listings/:id/claim
 
 ---
 
-## Claims
+## Listing requirements
 
-| Method | Endpoint |
-|---------|----------|
-| PATCH | /api/listings/:id/claim |
-| PATCH | /api/listings/:id/confirm-pickup |
+When creating a listing, the API expects:
+
+- itemDescription: at least 2 characters
+- quantity: number greater than or equal to 1
+- category: cooked_meal, baked_goods, raw_produce, or free_donation
+- pickupByTime: valid date/time value
+- coordinates: [longitude, latitude]
+
+Optional:
+
+- price: number or the word "free"
 
 ---
 
-## Admin
+## Response style
 
-| Method | Endpoint |
-|---------|----------|
-| PATCH | /api/admin/charities/:userId/verify |
+The API usually returns:
 
----
-
-# Response Format
-
-There is no wrapping `data` object — response fields sit directly alongside `success`, and the field names vary per endpoint.
-
-**Successful response (example — register/login):**
 ```json
 {
   "success": true,
-  "msg": "Account created successfully",
-  "token": "...",
-  "account": { "id": "...", "email": "...", "role": "..." }
+  "msg": "message here"
 }
 ```
 
-**Successful response (example — profile fetch):**
-```json
-{
-  "success": true,
-  "user": { "...": "profile fields" }
-}
-```
+Some endpoints return extra data such as token, account, or user details.
 
-**Generic error (auth, permission, not found):**
-```json
-{
-  "success": false,
-  "msg": "Invalid credentials"
-}
-```
-
-**Validation error:**
-```json
-{
-  "success": false,
-  "msg": "Validation failed",
-  "errors": [
-    { "field": "body.email", "message": "Invalid email" }
-  ]
-}
-```
+Errors are returned with a message and sometimes validation details.
 
 ---
 
-# Security
+## Security features
 
-The API includes
+The backend includes:
 
-- JWT Authentication
-- Role-based Authorization
-- MongoDB Transactions
-- Request Validation
-- Input Sanitization
-- XSS Protection
-- Mongo Sanitization
-- Rate Limiting
-- Helmet Security Headers
+- JWT authentication
+- role-based access control
+- validation with Zod
+- input sanitization
+- rate limiting
+- security headers with Helmet
 
 ---
 
-# Background Jobs
+## Notes for frontend developers
 
-Node Cron runs every minute to
+- Always log in first to get a token.
+- Save the token and include it in future requests.
+- Register and login are public routes.
+- Most other routes require authentication.
+- Charity accounts need to be verified before claiming listings.
+- Claims expire automatically after 15 minutes.
 
-- Expire old listings
-- Release expired claims
-- Mark no-show pickups
-
----
-
-# Notification System
-
-Emails are sent for
-
-- Charity Registration
-- Charity Verification
-- Nearby Listings
-
----
-
-# Database
-
-MongoDB + Mongoose
 
 GeoJSON is used for location-based searching.
 
