@@ -1,22 +1,22 @@
 import { useEffect, useState } from 'react';
 import './VendorDashboardScreen.css';
 import ScreenHeader from '../../components/ScreenHeader/ScreenHeader.jsx';
+import ScreenContainer from '../../components/ScreenContainer/ScreenContainer.jsx';
 import Skeleton from '../../components/Skeleton/Skeleton.jsx';
 import StatCard from '../../components/StatCard/StatCard.jsx';
 import StatusTag from '../../components/StatusTag/StatusTag.jsx';
+import Button from '../../components/Button/Button.jsx';
 import EmptyState from '../../components/EmptyState/EmptyState.jsx';
 import FullError from '../../components/FullError/FullError.jsx';
-import Button from '../../components/Button/Button.jsx';
 import { BoxIcon } from '../../components/Icon/Icon.jsx';
 
 const BASE_LISTINGS = [
-  { name: 'Jollof rice trays', meta: '6 portions · 6:40 PM', status: 'claimed' },
   { name: 'Meat pies (18)', meta: '18 units · 5:10 PM', status: 'discarded' },
   { name: 'Bread loaves', meta: '12 loaves · 8:00 PM', status: 'live' },
 ];
 
-export default function VendorDashboardScreen({ extraListings = [] }) {
-  const [phase, setPhase] = useState('loading'); 
+export default function VendorDashboardScreen({ extraListings = [], awaitingPickup, claimedCount, onOpenPickup }) {
+  const [phase, setPhase] = useState('loading'); // loading | success | empty | error
   const [rows, setRows] = useState([]);
 
   function fetchData(allowFail) {
@@ -27,22 +27,22 @@ export default function VendorDashboardScreen({ extraListings = [] }) {
         return;
       }
       const liveRows = extraListings.map((l) => ({ name: l.item, meta: `${l.qty} · just now`, status: 'live' }));
-      const all = [...liveRows, ...BASE_LISTINGS];
-      setRows(all);
-      setPhase(all.length === 0 ? 'empty' : 'success');
+      setRows([...liveRows, ...BASE_LISTINGS]);
+      setPhase('success');
     }, 700);
   }
 
   useEffect(() => {
     fetchData(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [extraListings.length]);
 
-  const claimed = rows.filter((r) => r.status === 'claimed').length + 14;
   const discarded = rows.filter((r) => r.status === 'discarded').length + 3;
+  const nothingToShow = rows.length === 0 && !awaitingPickup;
 
   if (phase === 'loading') {
     return (
-      <div className="vendor-dashboard-screen">
+      <ScreenContainer className="vendor-dashboard-screen">
         <ScreenHeader title="Dashboard" />
         <div className="vendor-dashboard-stats">
           <div className="vendor-dashboard-stat-skeleton">
@@ -61,26 +61,26 @@ export default function VendorDashboardScreen({ extraListings = [] }) {
             <Skeleton height="12px" width="40%" />
           </div>
         ))}
-      </div>
+      </ScreenContainer>
     );
   }
 
   if (phase === 'error') {
     return (
-      <div className="vendor-dashboard-screen">
+      <ScreenContainer className="vendor-dashboard-screen">
         <ScreenHeader title="Dashboard" />
         <FullError
           title="Couldn't load your dashboard"
           description="Something went wrong on our end. Your listings are safe — this is just a display issue."
           onRetry={() => fetchData(true)}
         />
-      </div>
+      </ScreenContainer>
     );
   }
 
-  if (phase === 'empty') {
+  if (nothingToShow) {
     return (
-      <div className="vendor-dashboard-screen">
+      <ScreenContainer className="vendor-dashboard-screen">
         <ScreenHeader title="Dashboard" />
         <EmptyState
           icon={<BoxIcon />}
@@ -88,12 +88,12 @@ export default function VendorDashboardScreen({ extraListings = [] }) {
           description="Post your first surplus item and your claimed-vs-discarded counts will show up here in real time."
           action={<Button variant="orange">Post a listing</Button>}
         />
-      </div>
+      </ScreenContainer>
     );
   }
 
   return (
-    <div className="vendor-dashboard-screen">
+    <ScreenContainer className="vendor-dashboard-screen">
       <ScreenHeader
         title="Dashboard"
         right={
@@ -103,10 +103,26 @@ export default function VendorDashboardScreen({ extraListings = [] }) {
         }
       />
       <div className="vendor-dashboard-stats">
-        <StatCard value={claimed} label="Claimed today" color="green" />
+        <StatCard value={claimedCount} label="Claimed today" color="green" />
         <StatCard value={discarded} label="Discarded today" color="orange" />
       </div>
       <p className="vendor-dashboard-section-label">Today's listings</p>
+
+      {awaitingPickup && (
+        <div className="vendor-dashboard-row vendor-dashboard-row-awaiting">
+          <div className="vendor-dashboard-row-top">
+            <div>
+              <p className="vendor-dashboard-row-name">{awaitingPickup.item}</p>
+              <p className="vendor-dashboard-row-meta">{awaitingPickup.vendorNote}</p>
+            </div>
+            <StatusTag status="awaiting" />
+          </div>
+          <Button variant="primary" onClick={onOpenPickup}>
+            Confirm pickup
+          </Button>
+        </div>
+      )}
+
       {rows.map((row, i) => (
         <div className="vendor-dashboard-row" key={row.name + i}>
           <div>
@@ -116,6 +132,6 @@ export default function VendorDashboardScreen({ extraListings = [] }) {
           <StatusTag status={row.status} />
         </div>
       ))}
-    </div>
+    </ScreenContainer>
   );
 }

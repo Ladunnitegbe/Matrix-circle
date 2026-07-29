@@ -1,80 +1,72 @@
-import { useState } from 'react';
-import Shell from './components/Shell/Shell.jsx';
-import PhoneFrame from './components/PhoneFrame/PhoneFrame.jsx';
-import BottomNav from './components/BottomNav/BottomNav.jsx';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import LandingPage from './pages/LandingPage/LandingPage.jsx';
+import LoginPage from './pages/LoginPage/LoginPage.jsx';
+import RegistrationPage from './pages/RegistrationPage/RegistrationPage.jsx';
+import DiscoverFoodPage from './pages/DiscoverFoodPage/DiscoverFoodPage.jsx';
+import CreateListPage from './pages/CreateListPage/CreateListPage.jsx';
+import ClaimFoodPage from './pages/ClaimFoodPage/ClaimFoodPage.jsx';
+import ReleaseClaimPage from './pages/ReleaseClaimPage/ReleaseClaimPage.jsx';
+import RequireAuth from './components/RequireAuth/RequireAuth.jsx';
 
-import VendorListingScreen from './screens/VendorListingScreen/VendorListingScreen.jsx';
-import VendorDashboardScreen from './screens/VendorDashboardScreen/VendorDashboardScreen.jsx';
-import DiscoveryFeedScreen from './screens/DiscoveryFeedScreen/DiscoveryFeedScreen.jsx';
-import ClaimHoldScreen from './screens/ClaimHoldScreen/ClaimHoldScreen.jsx';
-
-import { listings as initialListings } from './data/listings.js';
-
-
+/**
+ * App — full route table for this phase.
+ *
+ * `/discover`, `/create-listing`, `/claim/:listingId`, and
+ * `/claim/:listingId/hold` are all wrapped in `RequireAuth` — every
+ * one of them either calls an authenticated endpoint or (for the
+ * claim/hold pair) stands in for a flow that will be authenticated
+ * once its backend exists. `/create-listing` additionally requires
+ * `role="vendor"`, matching `POST /listings`'s own requirement.
+ *
+ * Note: `src/screens/*` and `src/data/listings.js` are leftover
+ * pre-Figma prototype code from before this project's current
+ * direction — no longer imported anywhere, intentionally left on disk
+ * rather than deleted as part of this feature. A dedicated cleanup
+ * pass should remove them.
+ */
 export default function App() {
-  const [tab, setTab] = useState('vendor-listing');
-  const [listings, setListings] = useState(initialListings);
-  const [postedListings, setPostedListings] = useState([]);
-
-  const [claim, setClaim] = useState(null); 
-
-  function handlePosted(newListing) {
-    setPostedListings((prev) => [newListing, ...prev]);
-    setListings((prev) => [newListing, ...prev]);
-  }
-
-  function handleClaim(listing) {
-    const raceLost = listing.minutesLeft <= 15;
-    if (!raceLost) {
-      setListings((prev) => prev.filter((l) => l.id !== listing.id));
-    }
-    setClaim({ listing, raceLost, expired: false });
-  }
-
-  function backToFeed() {
-    setClaim(null);
-    setTab('feed');
-  }
-
-  function handleExpire() {
-    if (claim) {
-      setListings((prev) => [claim.listing, ...prev]);
-      setClaim({ ...claim, expired: true });
-    }
-  }
-
-  function handleRelease() {
-    if (claim) {
-      setListings((prev) => [claim.listing, ...prev]);
-    }
-    backToFeed();
-  }
-
-  let screen;
-  if (claim) {
-    screen = (
-      <ClaimHoldScreen
-        listing={claim.listing}
-        raceLost={claim.raceLost}
-        expired={claim.expired}
-        onBack={backToFeed}
-        onExpire={handleExpire}
-        onRelease={handleRelease}
-      />
-    );
-  } else if (tab === 'vendor-listing') {
-    screen = <VendorListingScreen onPosted={handlePosted} />;
-  } else if (tab === 'vendor-dashboard') {
-    screen = <VendorDashboardScreen extraListings={postedListings} />;
-  } else {
-    screen = <DiscoveryFeedScreen listings={listings} onClaim={handleClaim} />;
-  }
-
   return (
-    <Shell>
-      <PhoneFrame bottom={!claim && <BottomNav current={tab} onSelect={setTab} />}>
-        {screen}
-      </PhoneFrame>
-    </Shell>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegistrationPage />} />
+
+        <Route
+          path="/discover"
+          element={
+            <RequireAuth>
+              <DiscoverFoodPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/create-listing"
+          element={
+            <RequireAuth role="vendor">
+              <CreateListPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/claim/:listingId"
+          element={
+            <RequireAuth>
+              <ClaimFoodPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/claim/:listingId/hold"
+          element={
+            <RequireAuth>
+              <ReleaseClaimPage />
+            </RequireAuth>
+          }
+        />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }

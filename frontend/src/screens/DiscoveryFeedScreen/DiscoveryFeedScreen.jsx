@@ -12,7 +12,7 @@ import { categories } from '../../data/listings.js';
 
 export default function DiscoveryFeedScreen({ listings, onClaim }) {
   const [activeCategory, setActiveCategory] = useState('All');
-  const [phase, setPhase] = useState('loading'); 
+  const [phase, setPhase] = useState('loading'); // loading | ready | error
 
   function load(allowFail) {
     setPhase('loading');
@@ -27,6 +27,7 @@ export default function DiscoveryFeedScreen({ listings, onClaim }) {
 
   useEffect(() => {
     load(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filtered = activeCategory === 'All' ? listings : listings.filter((l) => l.category === activeCategory);

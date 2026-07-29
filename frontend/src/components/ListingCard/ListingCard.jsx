@@ -3,6 +3,7 @@ import Card from '../Card/Card.jsx';
 import TimeRing from '../TimeRing/TimeRing.jsx';
 import { PinIcon, BoxIcon } from '../Icon/Icon.jsx';
 
+/** ListingCard — a single surplus-food listing on the discovery feed (US-4). */
 export default function ListingCard({ listing, muted = false }) {
   return (
     <Card muted={muted}>

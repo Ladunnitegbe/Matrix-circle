@@ -8,6 +8,7 @@ const ICONS = {
   offline: WifiOffIcon,
 };
 
+/** Banner — inline error / success / info messaging (server-response states). */
 export default function Banner({ type = 'info', children }) {
   const Icon = ICONS[type] || ClockIcon;
   return (
