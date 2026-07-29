@@ -26,3 +26,8 @@
   background: var(--paper-sunk);
   color: var(--ink-soft);
 }
+
+.status-tag-awaiting {
+  background: var(--orange-100);
+  color: var(--orange-700);
+}

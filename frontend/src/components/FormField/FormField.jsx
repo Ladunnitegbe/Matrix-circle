@@ -1,5 +1,10 @@
 import './FormField.css';
 
+/**
+ * FormField — labeled input/select with a built-in error state.
+ * Used by the vendor "New listing" form (US-1), which must block
+ * submission and highlight exactly what's missing.
+ */
 export default function FormField({
   label,
   type = 'text',

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import './VendorListingScreen.css';
 import ScreenHeader from '../../components/ScreenHeader/ScreenHeader.jsx';
+import ScreenContainer from '../../components/ScreenContainer/ScreenContainer.jsx';
 import Button from '../../components/Button/Button.jsx';
 import FormField from '../../components/FormField/FormField.jsx';
 import Banner from '../../components/Banner/Banner.jsx';
@@ -52,7 +53,7 @@ export default function VendorListingScreen({ onPosted }) {
 
   if (phase === 'success' && posted) {
     return (
-      <div className="vendor-listing-screen">
+      <ScreenContainer className="vendor-listing-screen">
         <ScreenHeader title="New listing" />
         <div className="vendor-listing-success">
           <div className="vendor-listing-success-badge">
@@ -65,13 +66,13 @@ export default function VendorListingScreen({ onPosted }) {
         <Button variant="ghost" onClick={reset}>
           List another item
         </Button>
-      </div>
+      </ScreenContainer>
     );
   }
 
   if (phase === 'loading') {
     return (
-      <div className="vendor-listing-screen">
+      <ScreenContainer className="vendor-listing-screen">
         <ScreenHeader title="New listing" />
         <FormField label="Item" value={item} disabled />
         <FormField label="Quantity" value={qty} disabled />
@@ -80,14 +81,14 @@ export default function VendorListingScreen({ onPosted }) {
         <Button variant="disabled" loading>
           Posting listing…
         </Button>
-      </div>
+      </ScreenContainer>
     );
   }
 
   const showError = phase === 'error';
 
   return (
-    <div className="vendor-listing-screen">
+    <ScreenContainer className="vendor-listing-screen">
       <ScreenHeader title="New listing" />
       {showError && <Banner type="error">Fix the highlighted fields before you can post this listing.</Banner>}
       <FormField
@@ -125,6 +126,6 @@ export default function VendorListingScreen({ onPosted }) {
         Post listing
       </Button>
       <p className="vendor-listing-footnote">Goes live on the feed instantly — no review step.</p>
-    </div>
+    </ScreenContainer>
   );
 }

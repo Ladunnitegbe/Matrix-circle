@@ -78,3 +78,23 @@
   font-size: 12.5px;
   cursor: pointer;
 }
+
+.vendor-dashboard-row-awaiting {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-color: var(--orange-100);
+  background: var(--orange-050);
+}
+
+.vendor-dashboard-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+@media (min-width: 720px) {
+  .vendor-dashboard-stats {
+    max-width: 420px;
+  }
+}

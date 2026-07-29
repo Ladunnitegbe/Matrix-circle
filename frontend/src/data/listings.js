@@ -1,4 +1,5 @@
-
+// Sample surplus listings used across the demo screens.
+// In production this would come from the discovery-feed API (Goal 2).
 
 export const listings = [
   {

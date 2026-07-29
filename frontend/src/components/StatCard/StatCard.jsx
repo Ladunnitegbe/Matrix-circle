@@ -1,5 +1,6 @@
 import './StatCard.css';
 
+/** StatCard — claimed-vs-discarded counters on the vendor dashboard (US-3). */
 export default function StatCard({ value, label, color = 'green' }) {
   return (
     <div className="stat-card">

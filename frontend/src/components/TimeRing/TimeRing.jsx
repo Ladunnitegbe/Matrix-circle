@@ -1,6 +1,10 @@
 import './TimeRing.css';
 
-
+/**
+ * TimeRing — the design system's signature element. It visualises the
+ * exact timing gap FoodShare exists to close (Section 1), and appears
+ * on every listing card and the listing detail screen.
+ */
 export default function TimeRing({ minutes, maxMinutes = 60, size = 44, stroke = 4 }) {
   const pct = Math.max(0, Math.min(1, minutes / maxMinutes));
   const urgent = minutes <= 15;
