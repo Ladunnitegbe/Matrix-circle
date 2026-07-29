@@ -1,10 +1,10 @@
-import { FilterQuery } from "mongoose";
 import { Listing, IListing, ListingCategory } from "./listing.model";
 import { getProfileByAccountId } from "../vendor/vendor.service";
 import NotFoundError from "../../common/error/not-found-error";
 import { newListingNearbyTemplate } from "../notification/email-templates";
 import { findUsersNearLocation } from "../user/user.service";
 import { sendEmail } from "../notification/notification.service";
+import { QueryFilter } from "mongoose"; // ← add this import
 
 type CreateListingInput = {
   itemDescription: string;
@@ -20,7 +20,7 @@ const notifyNearbyUsers = async (listing: IListing) => {
     const nearbyUsers = await findUsersNearLocation(listing.location.coordinates, 5);
     for (const user of nearbyUsers) {
       const { subject, html } = newListingNearbyTemplate(user.name, listing.itemDescription);
-      await sendEmail(user.email, subject, html); 
+      await sendEmail(user.email, subject, html);
     }
   } catch (err) {
     console.error("Failed to notify nearby users:", err);
@@ -28,7 +28,7 @@ const notifyNearbyUsers = async (listing: IListing) => {
 };
 
 const createListing = async (accountId: string, input: CreateListingInput) => {
-  const vendor = await getProfileByAccountId(accountId); 
+  const vendor = await getProfileByAccountId(accountId);
 
   const listing = await Listing.create({
     vendorId: vendor.id,
@@ -51,17 +51,22 @@ type FeedFilters = {
 };
 
 const getFeed = async (filters: FeedFilters) => {
-  const query: FilterQuery<IListing> = {
+  const query: QueryFilter<IListing> = {  // ← properly typed, no `as` cast needed
     state: "active",
     location: {
       $near: {
-        $geometry: { type: "Point", coordinates: [filters.lng, filters.lat] },
+        $geometry: {
+          type: "Point",
+          coordinates: [filters.lng, filters.lat],
+        },
         $maxDistance: filters.maxDistanceKm * 1000,
       },
     },
   };
 
-  if (filters.category) query.category = filters.category;
+  if (filters.category) {
+    query.category = filters.category;
+  }
 
   return Listing.find(query).sort({ pickupByTime: 1 });
 };
