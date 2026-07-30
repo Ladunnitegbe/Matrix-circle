@@ -2,6 +2,8 @@ import { Link } from 'react-router-dom';
 import Navbar from '../../components/Navbar/Navbar.jsx';
 import Card from '../../components/Card/Card.jsx';
 import Button from '../../components/Button/Button.jsx';
+import logo from "../../assets/images/desktop_logo.png";
+import heroImage from "../../assets/images/hero_image.png";
 import { HeartIcon, GlobeIcon, BoltIcon } from '../../components/Icon/Icon.jsx';
 import { getToken, getAccount } from '../../lib/authStorage.js';
 
@@ -62,22 +64,80 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-surface">
-      <Navbar
-        brand={<span className="text-sh2 font-bold text-ink">Food<span className="text-accent-orange">Share</span></span>}
-        ariaLabel="Primary"
-      >
-        <a href="#home" className="text-body2 font-semibold text-accent-orange">Home</a>
-        <a href="#how-it-works" className="text-body2 font-medium text-ink hover:text-accent-orange">How it Works</a>
-        <a href="#for-vendors" className="text-body2 font-medium text-ink hover:text-accent-orange">For Vendors</a>
-      </Navbar>
+     <Navbar
+ brand={
+    <img
+        src={logo}
+        alt="FoodShare Logo"
+        className="h-12 w-auto"
+    />}
+  ariaLabel="Primary"
+  actions={
+    !isAuthenticated ? (
+      <>
+        <Link
+          to="/login"
+          className="text-body2 font-medium text-ink hover:text-accent-orange"
+        >
+          Login
+        </Link>
+
+        <Link to="/register">
+          <Button
+            color="accent"
+            variant="solid"
+            fullWidth={false}
+          >
+            Register
+          </Button>
+        </Link>
+      </>
+    ) : (
+      <Link to="/dashboard">
+        <Button
+          color="secondary"
+          variant="solid"
+          fullWidth={false}
+        >
+          Dashboard
+        </Button>
+      </Link>
+    )
+  }
+>
+  <a
+    href="#home"
+    className="text-body2 font-semibold text-accent-orange"
+  >
+    Home
+  </a>
+
+  <a
+    href="#how-it-works"
+    className="text-body2 font-medium text-ink hover:text-accent-orange"
+  >
+    How It Works
+  </a>
+
+  <a
+    href="#for-vendors"
+    className="text-body2 font-medium text-ink hover:text-accent-orange"
+  >
+    For Vendors
+  </a>
+</Navbar>
 
       <main id="home" className="mx-auto max-w-6xl px-4 py-10 tablet:px-6 tablet:py-14 laptop:px-8">
         {/* Hero */}
         <section className="flex flex-col items-center gap-10 tablet:flex-row tablet:items-center">
           <div className="tablet:flex-1">
-            <h1 className="text-h4 font-bold leading-tight text-ink tablet:text-h3">
-              Good food belongs to the <span className="text-accent-green">community</span>, not the bin.
-            </h1>
+            <h1 className="text-h3 font-bold leading-tight text-ink">
+    Good food belongs
+    <br />
+    to the <span className="text-accent-green">community</span>,
+    <br />
+    <span className="text-accent-green">not the bin.</span>
+</h1>
             <p className="mt-4 text-body1 text-ink-muted">
               Connecting local food vendors with neighbors, students, and charities to share surplus meals in
               real-time. Fresh, local, and completely free.
@@ -95,9 +155,13 @@ export default function LandingPage() {
               </Link>
             </div>
           </div>
-          <div className="flex h-56 w-full items-center justify-center rounded-2xl bg-primary-light tablet:h-72 tablet:flex-1">
-            <span className="text-body2 text-ink-faint">Illustration pending — asset not yet provided</span>
-          </div>
+          <div className="tablet:flex-1 flex justify-center">
+    <img
+        src={heroImage}
+        alt="Vendor handing food to neighbour"
+        className="w-full max-w-xl object-contain"
+    />
+</div>
         </section>
 
         {/* How It Works */}
@@ -167,7 +231,165 @@ export default function LandingPage() {
             exactly where your food is coming from and who is providing it.
           </p>
         </section>
+
+        {/* Final CTA */}
+<section className="mt-20 text-center">
+  <h2 className="text-h3 font-bold text-ink">
+    Ready to reduce food waste
+    <br />
+    in your neighborhood?
+  </h2>
+
+  <p className="mx-auto mt-4 max-w-2xl text-body1 text-ink-muted">
+    Join thousands of neighbours and vendors working together to reduce
+    food waste while helping the community.
+  </p>
+
+  <div className="mt-8 flex flex-col items-center justify-center gap-4 tablet:flex-row">
+    <Link to={findFoodHref}>
+      <Button color="secondary" variant="solid">
+        Open the Feed
+      </Button>
+    </Link>
+
+    <Link to={shareFoodHref}>
+      <Button color="accent" variant="solid">
+        Register as Vendor
+      </Button>
+    </Link>
+  </div>
+
+  {!isAuthenticated && (
+    <p className="mt-5 text-body2 text-ink-muted">
+      Already have an account?{" "}
+      <Link
+        to="/login"
+        className="font-semibold text-accent-green hover:underline"
+      >
+        Log in
+      </Link>
+    </p>
+  )}
+</section>
+
+<footer className="mt-24 border-t border-border bg-primary-light">
+  <div className="mx-auto grid max-w-6xl gap-12 px-4 py-12 tablet:grid-cols-3 tablet:px-6 laptop:px-8">
+
+    {/* Logo & Description */}
+    <div>
+      <img
+        src={logo}
+        alt="FoodShare Logo"
+        className="h-12 w-auto"
+      />
+
+      <p className="mt-4 text-body2 text-ink-muted">
+        Connecting communities with surplus food to reduce waste and
+        fight hunger one meal at a time.
+      </p>
+    </div>
+
+    {/* Quick Links */}
+    <div>
+      <h3 className="text-sh2 font-bold text-ink">
+        Quick Links
+      </h3>
+
+      <ul className="mt-4 space-y-3 text-body2">
+        <li>
+          <a
+            href="#home"
+            className="text-ink-muted hover:text-accent-orange"
+          >
+            Home
+          </a>
+        </li>
+
+        <li>
+          <a
+            href="#how-it-works"
+            className="text-ink-muted hover:text-accent-orange"
+          >
+            How It Works
+          </a>
+        </li>
+
+        <li>
+          <a
+            href="#for-vendors"
+            className="text-ink-muted hover:text-accent-orange"
+          >
+            For Vendors
+          </a>
+        </li>
+
+        <li>
+          <Link
+            to="/login"
+            className="text-ink-muted hover:text-accent-orange"
+          >
+            Login
+          </Link>
+        </li>
+
+        <li>
+          <Link
+            to="/register"
+            className="text-ink-muted hover:text-accent-orange"
+          >
+            Register
+          </Link>
+        </li>
+      </ul>
+    </div>
+
+    {/* Policies */}
+    <div>
+      <h3 className="text-sh2 font-bold text-ink">
+        Policies
+      </h3>
+
+      <ul className="mt-4 space-y-3 text-body2">
+        <li>
+          <Link
+            to="/privacy-policy"
+            className="text-ink-muted hover:text-accent-orange"
+          >
+            Privacy Policy
+          </Link>
+        </li>
+
+        <li>
+          <Link
+            to="/terms"
+            className="text-ink-muted hover:text-accent-orange"
+          >
+            Terms & Conditions
+          </Link>
+        </li>
+
+        <li>
+          <Link
+            to="/contact"
+            className="text-ink-muted hover:text-accent-orange"
+          >
+            Contact Us
+          </Link>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div className="border-t border-border py-5 text-center">
+    <p className="text-body2 text-ink-muted">
+      © {new Date().getFullYear()} FoodShare. All rights reserved.
+    </p>
+  </div>
+</footer>
+
       </main>
     </div>
+
+    
   );
 }

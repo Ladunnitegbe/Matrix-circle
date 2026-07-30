@@ -57,12 +57,28 @@ export default function Navbar({
       </div>
 
       {/* Mobile nav panel */}
-      {open && (
-        <div id="navbar-mobile-panel" className="tablet:hidden border-t border-border px-4 py-3">
-          <div className="flex flex-col gap-3">{children}</div>
-          {actions && <div className="mt-3 flex flex-col gap-2">{actions}</div>}
-        </div>
-      )}
+     {open && (
+  <div
+    id="navbar-mobile-panel"
+    className="tablet:hidden border-t border-border px-4 py-3"
+  >
+    <div
+      className="flex flex-col gap-3"
+      onClick={() => setOpen(false)}
+    >
+      {children}
+    </div>
+
+    {actions && (
+      <div
+        className="mt-3 flex flex-col gap-2"
+        onClick={() => setOpen(false)}
+      >
+        {actions}
+      </div>
+    )}
+  </div>
+)}
     </nav>
   );
 }
