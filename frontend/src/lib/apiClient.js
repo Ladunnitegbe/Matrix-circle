@@ -16,7 +16,12 @@
  * documented local default. Set the env var once a real deployment
  * URL exists — no code changes needed elsewhere.
  */
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+// const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+
+console.log("BASE_URL =", BASE_URL);
+console.log("ENV =", import.meta.env);
 
 export class ApiError extends Error {
   constructor(status, msg, errors) {
