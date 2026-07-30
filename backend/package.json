@@ -4,10 +4,10 @@
   "description": "Orange internship program 2026",
   "main": "src/server.ts",
   "scripts": {
-  "dev": "tsx watch src/server.ts",
-  "build": "tsc",
-  "start": "node dist/server.js",
-  "seed:admin": "tsx src/scripts/seedAdmin.ts"
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "seed:admin": "tsx src/scripts/seedAdmin.ts"
 },
   "repository": {
     "type": "git",
