@@ -4,7 +4,7 @@ import NotFoundError from "../../common/error/not-found-error";
 import { newListingNearbyTemplate } from "../notification/email-templates";
 import { findUsersNearLocation } from "../user/user.service";
 import { sendEmail } from "../notification/notification.service";
-import { QueryFilter } from "mongoose"; // ← add this import
+import { QueryFilter } from "mongoose"; 
 
 type CreateListingInput = {
   itemDescription: string;
@@ -51,7 +51,7 @@ type FeedFilters = {
 };
 
 const getFeed = async (filters: FeedFilters) => {
-  const query: QueryFilter<IListing> = {  // ← properly typed, no `as` cast needed
+  const query: QueryFilter<IListing> = {  
     state: "active",
     location: {
       $near: {
