@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import './CountdownRing.css';
 
 /**
- * CountdownRing — the large, live-ticking version of TimeRing used on
- * the Claim & Hold screen (US-6). Manages its own interval and calls
- * onExpire once the 15-minute hold runs out.
- *
- * Sped up for demo purposes: 15 real seconds represent the 15-minute hold.
+ * CountdownRing — large ticking countdown ring, used on the post-claim
+ * hold screen. `speedFactor` defaults to 60 (an old demo default —
+ * see ReleaseClaimPage, which explicitly overrides it to 1 for real
+ * 15-real-minutes behavior).
  */
 export default function CountdownRing({ totalSeconds = 900, active = true, onExpire, speedFactor = 60 }) {
   const [secondsLeft, setSecondsLeft] = useState(totalSeconds);
@@ -19,7 +17,7 @@ export default function CountdownRing({ totalSeconds = 900, active = true, onExp
         const next = prev - speedFactor;
         if (next <= 0) {
           clearInterval(intervalRef.current);
-          if (onExpire) onExpire();
+          onExpire?.();
           return 0;
         }
         return next;
@@ -34,29 +32,19 @@ export default function CountdownRing({ totalSeconds = 900, active = true, onExp
   const c = 2 * Math.PI * r;
   const pct = secondsLeft / totalSeconds;
   const offset = c * (1 - pct);
-
   const mm = String(Math.floor(secondsLeft / 60)).padStart(2, '0');
   const ss = String(secondsLeft % 60).padStart(2, '0');
 
   return (
-    <div className="countdown-ring" style={{ width: size, height: size }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <circle className="countdown-ring-track" cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} />
-        <circle
-          className="countdown-ring-progress"
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          strokeWidth={stroke}
-          strokeDasharray={c}
-          strokeDashoffset={offset}
-        />
+    <div className="relative mx-auto my-3" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} fill="none" className="stroke-secondary-light" />
+        <circle cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} fill="none" strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={offset} className="stroke-accent-orange transition-[stroke-dashoffset] duration-1000 ease-linear" />
       </svg>
-      <div className="countdown-ring-label">
-        <div className="countdown-ring-time">
-          {mm}:{ss}
-        </div>
-        <div className="countdown-ring-sub">to reach the vendor</div>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-h4 font-semibold text-ink">{mm}:{ss}</span>
+        <span className="mt-0.5 text-caption font-semibold text-ink-faint">to reach the vendor</span>
       </div>
     </div>
   );

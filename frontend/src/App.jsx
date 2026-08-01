@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+
 import LandingPage from './pages/LandingPage/LandingPage.jsx';
 import LoginPage from './pages/LoginPage/LoginPage.jsx';
 import RegistrationPage from './pages/RegistrationPage/RegistrationPage.jsx';
@@ -6,32 +7,51 @@ import DiscoverFoodPage from './pages/DiscoverFoodPage/DiscoverFoodPage.jsx';
 import CreateListPage from './pages/CreateListPage/CreateListPage.jsx';
 import ClaimFoodPage from './pages/ClaimFoodPage/ClaimFoodPage.jsx';
 import ReleaseClaimPage from './pages/ReleaseClaimPage/ReleaseClaimPage.jsx';
+import DashboardPage from './pages/DashboardPage/DashboardPage.jsx';
 import RequireAuth from './components/RequireAuth/RequireAuth.jsx';
 
 /**
- * App — full route table for this phase.
+ * App — complete application route table.
  *
- * `/discover`, `/create-listing`, `/claim/:listingId`, and
- * `/claim/:listingId/hold` are all wrapped in `RequireAuth` — every
- * one of them either calls an authenticated endpoint or (for the
- * claim/hold pair) stands in for a flow that will be authenticated
- * once its backend exists. `/create-listing` additionally requires
- * `role="vendor"`, matching `POST /listings`'s own requirement.
+ * Public routes:
+ * - /
+ * - /login
+ * - /register
  *
- * Note: `src/screens/*` and `src/data/listings.js` are leftover
- * pre-Figma prototype code from before this project's current
- * direction — no longer imported anywhere, intentionally left on disk
- * rather than deleted as part of this feature. A dedicated cleanup
- * pass should remove them.
+ * Protected routes:
+ * - /discover
+ * - /create-listing (vendor only)
+ * - /claim/:listingId
+ * - /claim/:listingId/hold
+ *
+ * The listing and claim flows were added during the latest UI pass,
+ * while the original Landing, Login, and Registration pages remain
+ * available. Future screens (such as Vendor Dashboard and Confirm
+ * Pickup) can be added without affecting the existing routes.
+ *
+ * Note: Legacy prototype files under `src/screens/*` and
+ * `src/data/listings.js` are intentionally left untouched and can be
+ * removed during a dedicated cleanup pass.
  */
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public Routes */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegistrationPage />} />
 
+        {/* Protected Routes */}
+        <Route
+          path="/vendor/dashboard"
+
+          element={
+            <RequireAuth role="vendor">
+              <DashboardPage />
+            </RequireAuth>
+          }
+        />
         <Route
           path="/discover"
           element={
@@ -40,6 +60,7 @@ export default function App() {
             </RequireAuth>
           }
         />
+
         <Route
           path="/create-listing"
           element={
@@ -48,6 +69,7 @@ export default function App() {
             </RequireAuth>
           }
         />
+
         <Route
           path="/claim/:listingId"
           element={
@@ -56,6 +78,7 @@ export default function App() {
             </RequireAuth>
           }
         />
+
         <Route
           path="/claim/:listingId/hold"
           element={
@@ -65,6 +88,7 @@ export default function App() {
           }
         />
 
+        {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

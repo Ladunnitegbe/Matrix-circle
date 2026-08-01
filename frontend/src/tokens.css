@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,40 +6,41 @@
    DEPRECATED — legacy design tokens (pre-Figma design system).
    Kept temporarily so already-built components (Button, Card,
    ListingCard, etc.) don't break before their own migration to
-   the Tailwind theme in tailwind.config.js. Once each component
-   is rebuilt against the Tailwind theme, its matching variables
-   below should be deleted. Do NOT reference these in any new
-   component — use Tailwind theme classes instead (see
-   tailwind.config.js for the current color/type/radius scale).
+   the Tailwind theme in tailwind.config.js.
+
+   Once every component has migrated to the Tailwind theme,
+   this entire :root block can be removed.
+
+   Do NOT reference these variables in new components.
    --------------------------------------------------------- */
 :root {
   /* --- Color: green = trust / vendor actions --- */
-  --green-900: #122E22;
-  --green-700: #1F6B45;
-  --green-600: #26804F;
-  --green-500: #2E9459;
-  --green-100: #DCEEDF;
-  --green-050: #EEF6EF;
+  --green-900: #122e22;
+  --green-700: #1f6b45;
+  --green-600: #26804f;
+  --green-500: #2e9459;
+  --green-100: #dceedf;
+  --green-050: #eef6ef;
 
   /* --- Color: orange = time-pressure / claim actions --- */
-  --orange-700: #B94E1C;
-  --orange-600: #D0631F;
-  --orange-500: #E8772C;
-  --orange-100: #FBE2CA;
-  --orange-050: #FDF0E2;
+  --orange-700: #b94e1c;
+  --orange-600: #d0631f;
+  --orange-500: #e8772c;
+  --orange-100: #fbe2ca;
+  --orange-050: #fdf0e2;
 
   /* --- Color: status --- */
-  --red-600: #C0432E;
-  --red-100: #F7DEDA;
+  --red-600: #c0432e;
+  --red-100: #f7deda;
 
   /* --- Neutrals --- */
-  --bg: #F7F5EC;
-  --paper: #FFFFFF;
-  --paper-sunk: #F0EDE1;
-  --line: #E3DECB;
-  --ink: #16261F;
-  --ink-soft: #57685F;
-  --ink-faint: #8A9790;
+  --bg: #f7f5ec;
+  --paper: #ffffff;
+  --paper-sunk: #f0ede1;
+  --line: #e3decb;
+  --ink: #16261f;
+  --ink-soft: #57685f;
+  --ink-faint: #8a9790;
 
   /* --- Radii --- */
   --radius-s: 10px;
@@ -53,24 +53,38 @@
   --font-mono: 'IBM Plex Mono', monospace;
 }
 
-*, *::before, *::after {
+/* ---------------------------------------------------------
+   Global resets
+   --------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   margin: 0;
   padding: 0;
   height: 100%;
 }
 
+/* Use the new Tailwind design system values globally.
+   Components still using legacy CSS variables will continue
+   to work because the variables remain defined above. */
 body {
-  background: var(--bg);
-  font-family: var(--font-body);
-  color: var(--ink);
+  background: #faf9f6;
+  font-family: 'Inter', sans-serif;
+  color: #1a1a1a;
   -webkit-font-smoothing: antialiased;
 }
 
-button, input, select {
+button,
+input,
+select,
+textarea {
   font: inherit;
   color: inherit;
 }
