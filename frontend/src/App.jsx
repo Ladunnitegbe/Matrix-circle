@@ -8,6 +8,7 @@ import CreateListPage from './pages/CreateListPage/CreateListPage.jsx';
 import ClaimFoodPage from './pages/ClaimFoodPage/ClaimFoodPage.jsx';
 import ReleaseClaimPage from './pages/ReleaseClaimPage/ReleaseClaimPage.jsx';
 import DashboardPage from './pages/DashboardPage/DashboardPage.jsx';
+import ConfirmPickupPage from './pages/ConfirmPickupPage/ConfirmPickupPage.jsx';
 import RequireAuth from './components/RequireAuth/RequireAuth.jsx';
 
 /**
@@ -84,6 +85,15 @@ export default function App() {
           element={
             <RequireAuth>
               <ReleaseClaimPage />
+            </RequireAuth>
+          }
+        />
+
+         <Route
+          path="/vendor/confirm-pickup"
+          element={
+            <RequireAuth role="vendor">
+              <ConfirmPickupPage />
             </RequireAuth>
           }
         />
