@@ -27,9 +27,7 @@ export default function LoginPage() {
     const next = {};
     if (!email.trim()) next.email = 'Enter your email address.';
     else if (!isValidEmail(email)) next.email = 'Enter a valid email address.';
-
     if (!password) next.password = 'Enter your password.';
-
     setFieldErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -43,7 +41,8 @@ export default function LoginPage() {
     try {
       const data = await login({ email, password });
       setSession(data.token, data.account);
-      navigate('/discover');
+      const destination = data.account.role === 'vendor' ? '/vendor/dashboard' : '/discover';
+      navigate(destination);
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.errors?.length) {
@@ -54,9 +53,8 @@ export default function LoginPage() {
           });
           setFieldErrors((prev) => ({ ...prev, ...next }));
         } else {
-          // Covers 401 ("Invalid credentials"), 429 (rate limited),
-          // and network failures (status 0) — all documented as
-          // plain-`msg` errors with no field-level detail.
+          // Covers 401 ("Invalid credentials"), 429, network failure —
+          // all plain-`msg` errors per the docs.
           setFormError(err.msg);
         }
       } else {

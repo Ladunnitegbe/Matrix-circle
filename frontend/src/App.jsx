@@ -9,6 +9,7 @@ import ClaimFoodPage from './pages/ClaimFoodPage/ClaimFoodPage.jsx';
 import ReleaseClaimPage from './pages/ReleaseClaimPage/ReleaseClaimPage.jsx';
 import DashboardPage from './pages/DashboardPage/DashboardPage.jsx';
 import ConfirmPickupPage from './pages/ConfirmPickupPage/ConfirmPickupPage.jsx';
+import ProfilePage from './pages/ProfilePage/ProfilePage.jsx';
 import RequireAuth from './components/RequireAuth/RequireAuth.jsx';
 
 /**
@@ -24,11 +25,8 @@ import RequireAuth from './components/RequireAuth/RequireAuth.jsx';
  * - /create-listing (vendor only)
  * - /claim/:listingId
  * - /claim/:listingId/hold
- *
- * The listing and claim flows were added during the latest UI pass,
- * while the original Landing, Login, and Registration pages remain
- * available. Future screens (such as Vendor Dashboard and Confirm
- * Pickup) can be added without affecting the existing routes.
+ * - /vendor/dashboard (vendor only)
+ * - /vendor/confirm-pickup (vendor only)
  *
  * Note: Legacy prototype files under `src/screens/*` and
  * `src/data/listings.js` are intentionally left untouched and can be
@@ -46,7 +44,6 @@ export default function App() {
         {/* Protected Routes */}
         <Route
           path="/vendor/dashboard"
-
           element={
             <RequireAuth role="vendor">
               <DashboardPage />
@@ -89,11 +86,20 @@ export default function App() {
           }
         />
 
-         <Route
+        <Route
           path="/vendor/confirm-pickup"
           element={
             <RequireAuth role="vendor">
               <ConfirmPickupPage />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="/vendor/profile"
+          element={
+            <RequireAuth role="vendor">
+              <ProfilePage />
             </RequireAuth>
           }
         />

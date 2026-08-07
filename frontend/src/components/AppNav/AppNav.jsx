@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from '../Sidebar/Sidebar.jsx';
 import Logo from '../Logo/Logo.jsx';
 import Button from '../Button/Button.jsx';
+import { LogoutIcon } from '../Icon/Icon.jsx';
 import { clearSession, getAccount } from '../../lib/authStorage.js';
 
 /**
@@ -10,8 +11,10 @@ import { clearSession, getAccount } from '../../lib/authStorage.js';
  *   - Vendor: Dashboard / New Listing / Confirm Pickup
  *   - Recipient / Charity / Organization: Discovery Feed / Listing
  *     Detail / Claim & Hold
- * ...plus the "Share Surplus Food" button pinned at the bottom,
- * which the Figma shows on *every* sidebar regardless of role.
+ * ...plus, pinned at the bottom: a "Profile" link and a "Logout"
+ * button. The "Share Surplus Food" button that used to sit here has
+ * been removed — the current Figma sidebar (profile_-_vendor_-*)
+ * shows "Profile" in that slot instead, not both.
  *
  * "Listing Detail" and "Claim & Hold" don't have a generic
  * destination — they're steps tied to whichever listing is currently
@@ -19,6 +22,10 @@ import { clearSession, getAccount } from '../../lib/authStorage.js';
  * known once a listing is actually open) makes them real links to
  * that listing's detail/hold routes; without it, they render as
  * inert labels rather than linking somewhere meaningless.
+ *
+ * "Profile" only appears for vendors here, matching the Figma (which
+ * only shows it inside the vendor sidebar context) — no design has
+ * been shown yet for a recipient/charity profile screen.
  */
 function NavItem({ to, label, active, disabled }) {
   const classes = [
@@ -68,12 +75,12 @@ export default function AppNav({ listingId, onCloseMobile }) {
       onClose={onCloseMobile}
       footer={
         <div className="flex flex-col gap-2">
-          <Button color="accent" variant="solid" fullWidth onClick={() => navigate('/create-listing')}>
-            Share Surplus Food
+          {isVendor && (
+            <NavItem to="/vendor/profile" label="Profile" active={location.pathname === '/vendor/profile'} />
+          )}
+          <Button color="accent" variant="outlined" fullWidth onClick={handleLogout} iconLeft={<LogoutIcon />}>
+            Logout
           </Button>
-          <button type="button" onClick={handleLogout} className="text-center text-caption font-semibold text-ink-faint hover:text-ink">
-            Log out
-          </button>
         </div>
       }
     >
