@@ -13,5 +13,10 @@ const getDashboard = asyncWrapper(async (req: Request, res: Response) => {
   res.status(200).json({ success: true, ...stats });
 });
 
+const getMyListings = asyncWrapper(async (req: Request, res: Response) => {
+  const vendor = await vendorService.getProfileByAccountId(req.user!.id);
+  const listings = await vendorService.getVendorListings(vendor.id);
+  res.status(200).json({ success: true, listings });
+});
 
-export { getMyProfile, getDashboard };
+export { getMyProfile, getDashboard, getMyListings };

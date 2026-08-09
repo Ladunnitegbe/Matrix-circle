@@ -42,4 +42,10 @@ const getVendorDashboard = async (vendorId: string) => {
   return { claimed, discarded };
 };
 
-export { createVendorProfile, getProfileByAccountId, getVendorDashboard };
+const getVendorListings = async (vendorId: string) => {
+  return Listing.find({ vendorId })
+    .sort({ createdAt: -1 })
+    .populate("claim.claimedBy", "name accountType");
+};
+
+export { createVendorProfile, getProfileByAccountId, getVendorDashboard, getVendorListings };
