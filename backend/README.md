@@ -121,6 +121,7 @@ Examples of protected routes:
 - PATCH /api/users/me/location
 - GET /api/vendors/me
 - GET /api/vendors/dashboard
+- GET /api/vendors/listings
 - POST /api/listings
 - GET /api/listings
 - PATCH /api/listings/:id/claim
