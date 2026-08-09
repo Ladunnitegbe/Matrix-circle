@@ -38,7 +38,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-surface">
       <Navbar
-        brand={<Logo size="md" />}
+        brand={<Logo size="md" withTagline className="tablet:h-16" />}
         ariaLabel="Primary"
         actions={
           !isAuthenticated ? (
@@ -191,7 +191,7 @@ export default function LandingPage() {
         <footer className="mt-24 border-t border-border bg-primary-light">
           <div className="mx-auto grid max-w-6xl gap-12 px-4 py-12 tablet:grid-cols-3 tablet:px-6 laptop:px-8">
             <div>
-              <Logo size="md" />
+              <Logo size="md" withTagline className="tablet:h-16" />
               <p className="mt-4 text-body2 text-ink-muted">
                 Connecting communities with surplus food to reduce waste and fight hunger one meal at a time.
               </p>

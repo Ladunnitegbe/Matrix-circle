@@ -71,7 +71,7 @@ export default function AppNav({ listingId, onCloseMobile }) {
 
   return (
     <Sidebar
-      brand={<Logo size="sm" withTagline />}
+      brand={<Logo size="sm" withTagline className="tablet:h-16" />}
       onClose={onCloseMobile}
       footer={
         <div className="flex flex-col gap-2">
