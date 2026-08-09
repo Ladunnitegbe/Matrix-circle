@@ -2,23 +2,12 @@ import { Link } from 'react-router-dom';
 import Navbar from '../../components/Navbar/Navbar.jsx';
 import Card from '../../components/Card/Card.jsx';
 import Button from '../../components/Button/Button.jsx';
+import Logo from '../../components/Logo/Logo.jsx';
 import { HeartIcon, GlobeIcon, BoltIcon } from '../../components/Icon/Icon.jsx';
 import { getToken, getAccount } from '../../lib/authStorage.js';
+import HeroImage from "../../assets/images/hero_image.png";
 
-/**
- * LandingPage — public marketing home. No auth, no API calls.
- *
- * The Figma hero includes a large illustration (a vendor handing a
- * neighbor a bag of food). No such asset exists in this project and
- * none was provided — rather than hotlinking a stock image into
- * production code, this ships without one. A real illustration/SVG
- * from design should replace the placeholder block below.
- *
- * CTA buttons route smartly based on auth state: signed-in visitors
- * go straight to the relevant authenticated page; signed-out visitors
- * go to Registration, since neither button makes sense before an
- * account exists.
- */
+
 const RECIPIENT_STEPS = [
   { n: '01', title: 'Browse Locally', body: 'Open the feed to see surplus food within a 5km radius.' },
   { n: '02', title: 'Reserve Instantly.', body: 'Tap to claim a portion. No credit cards, no complicated sign-ups.' },
@@ -32,42 +21,46 @@ const VENDOR_STEPS = [
 ];
 
 const CORE_VALUES = [
-  {
-    icon: HeartIcon,
-    title: 'Community & Dignity',
-    body: 'We treat surplus food as a shared neighborhood resource, built on mutual respect — not charity leftovers.',
-  },
-  {
-    icon: GlobeIcon,
-    title: 'Zero Waste Impact',
-    body: 'Every meal claimed is a step toward sustainability. Perfectly good food stays on plates, not in landfills.',
-  },
-  {
-    icon: BoltIcon,
-    title: 'Built for Speed',
-    body: 'Designed to be ultra-lightweight. Fast loading times, low data usage, and effortless navigation for everyone.',
-  },
+  { icon: HeartIcon, title: 'Community & Dignity', body: 'We treat surplus food as a shared neighborhood resource, built on mutual respect — not charity leftovers.' },
+  { icon: GlobeIcon, title: 'Zero Waste Impact', body: 'Every meal claimed is a step toward sustainability. Perfectly good food stays on plates, not in landfills.' },
+  { icon: BoltIcon, title: 'Built for Speed', body: 'Designed to be ultra-lightweight. Fast loading times, low data usage, and effortless navigation for everyone.' },
 ];
 
 export default function LandingPage() {
   const isAuthenticated = Boolean(getToken());
   const account = getAccount();
+  const isVendor = account?.role === 'vendor';
 
+  const primaryAuthedHref = isVendor ? '/vendor/dashboard' : '/discover';
   const findFoodHref = isAuthenticated ? '/discover' : '/register';
-  const shareFoodHref = isAuthenticated
-    ? account?.role === 'vendor'
-      ? '/create-listing'
-      : '/register'
-    : '/register';
+  const shareFoodHref = isAuthenticated ? (isVendor ? '/create-listing' : '/register') : '/register';
 
   return (
     <div className="min-h-screen bg-surface">
       <Navbar
-        brand={<span className="text-sh2 font-bold text-ink">Food<span className="text-accent-orange">Share</span></span>}
+        brand={<Logo size="md" />}
         ariaLabel="Primary"
+        actions={
+          !isAuthenticated ? (
+            <>
+              <Link to="/login" className="text-body2 font-medium text-ink hover:text-accent-orange">
+                Login
+              </Link>
+              <Link to="/register">
+                <Button color="accent" variant="solid" fullWidth={false}>Register</Button>
+              </Link>
+            </>
+          ) : (
+            <Link to={primaryAuthedHref}>
+              <Button color="secondary" variant="solid" fullWidth={false}>
+                {isVendor ? 'Dashboard' : 'Discover Food'}
+              </Button>
+            </Link>
+          )
+        }
       >
         <a href="#home" className="text-body2 font-semibold text-accent-orange">Home</a>
-        <a href="#how-it-works" className="text-body2 font-medium text-ink hover:text-accent-orange">How it Works</a>
+        <a href="#how-it-works" className="text-body2 font-medium text-ink hover:text-accent-orange">How It Works</a>
         <a href="#for-vendors" className="text-body2 font-medium text-ink hover:text-accent-orange">For Vendors</a>
       </Navbar>
 
@@ -75,8 +68,10 @@ export default function LandingPage() {
         {/* Hero */}
         <section className="flex flex-col items-center gap-10 tablet:flex-row tablet:items-center">
           <div className="tablet:flex-1">
-            <h1 className="text-h4 font-bold leading-tight text-ink tablet:text-h3">
-              Good food belongs to the <span className="text-accent-green">community</span>, not the bin.
+            <h1 className="text-h3 font-bold leading-tight text-ink">
+              Good food belongs<br />
+              to the <span className="text-accent-green">community</span>,<br />
+              <span className="text-accent-green">not the bin.</span>
             </h1>
             <p className="mt-4 text-body1 text-ink-muted">
               Connecting local food vendors with neighbors, students, and charities to share surplus meals in
@@ -84,26 +79,25 @@ export default function LandingPage() {
             </p>
             <div className="mt-6 flex flex-col gap-3 tablet:flex-row">
               <Link to={findFoodHref}>
-                <Button color="secondary" variant="solid" fullWidth={false}>
-                  Find Food Nearby
-                </Button>
+                <Button color="secondary" variant="solid" fullWidth={false}>Find Food Nearby</Button>
               </Link>
               <Link to={shareFoodHref}>
-                <Button color="accent" variant="solid" fullWidth={false}>
-                  Share Surplus Food
-                </Button>
+                <Button color="accent" variant="solid" fullWidth={false}>Share Surplus Food</Button>
               </Link>
             </div>
           </div>
-          <div className="flex h-56 w-full items-center justify-center rounded-2xl bg-primary-light tablet:h-72 tablet:flex-1">
-            <span className="text-body2 text-ink-faint">Illustration pending — asset not yet provided</span>
-          </div>
+         <div className="tablet:flex-1 flex justify-center">
+    <img
+        src={HeroImage}
+        alt="Food sharing"
+        className="w-full max-w-[650px] object-contain"
+    />
+</div>
         </section>
 
         {/* How It Works */}
         <section id="how-it-works" className="mt-20">
           <h2 className="text-center text-h4 font-bold text-ink">How It Works</h2>
-
           <div className="mt-10 grid grid-cols-1 gap-10 tablet:grid-cols-2">
             <div>
               <h3 className="text-sh1 font-bold text-ink">For Neighbors &amp; Charities</h3>
@@ -167,6 +161,72 @@ export default function LandingPage() {
             exactly where your food is coming from and who is providing it.
           </p>
         </section>
+
+        {/* Final CTA */}
+        <section className="mt-20 text-center">
+          <h2 className="text-h3 font-bold text-ink">
+            Ready to reduce food waste<br />in your neighborhood?
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-body1 text-ink-muted">
+            Join thousands of neighbours and vendors working together to reduce food waste while helping the
+            community.
+          </p>
+          <div className="mt-8 flex flex-col items-center justify-center gap-4 tablet:flex-row">
+            <Link to={findFoodHref}>
+              <Button color="secondary" variant="solid">Open the Feed</Button>
+            </Link>
+            <Link to={shareFoodHref}>
+              <Button color="accent" variant="solid">Register as Vendor</Button>
+            </Link>
+          </div>
+          {!isAuthenticated && (
+            <p className="mt-5 text-body2 text-ink-muted">
+              Already have an account?{' '}
+              <Link to="/login" className="font-semibold text-accent-green hover:underline">Log in</Link>
+            </p>
+          )}
+        </section>
+
+        {/* Footer */}
+        <footer className="mt-24 border-t border-border bg-primary-light">
+          <div className="mx-auto grid max-w-6xl gap-12 px-4 py-12 tablet:grid-cols-3 tablet:px-6 laptop:px-8">
+            <div>
+              <Logo size="md" />
+              <p className="mt-4 text-body2 text-ink-muted">
+                Connecting communities with surplus food to reduce waste and fight hunger one meal at a time.
+              </p>
+            </div>
+
+            <div>
+              <h3 className="text-sh2 font-bold text-ink">Quick Links</h3>
+              <ul className="mt-4 space-y-3 text-body2">
+                <li><a href="#home" className="text-ink-muted hover:text-accent-orange">Home</a></li>
+                <li><a href="#how-it-works" className="text-ink-muted hover:text-accent-orange">How It Works</a></li>
+                <li><a href="#for-vendors" className="text-ink-muted hover:text-accent-orange">For Vendors</a></li>
+                <li><Link to="/login" className="text-ink-muted hover:text-accent-orange">Login</Link></li>
+                <li><Link to="/register" className="text-ink-muted hover:text-accent-orange">Register</Link></li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="text-sh2 font-bold text-ink">Policies</h3>
+              {/* These three routes don't exist in App.jsx yet — clicking
+                  them currently falls through to the catch-all redirect
+                  back to "/". Left in as real <Link>s since a Privacy
+                  Policy / Terms / Contact page is a reasonable future
+                  addition, not invented as fully-built pages here. */}
+              <ul className="mt-4 space-y-3 text-body2">
+                <li><Link to="/privacy-policy" className="text-ink-muted hover:text-accent-orange">Privacy Policy</Link></li>
+                <li><Link to="/terms" className="text-ink-muted hover:text-accent-orange">Terms &amp; Conditions</Link></li>
+                <li><Link to="/contact" className="text-ink-muted hover:text-accent-orange">Contact Us</Link></li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="border-t border-border py-5 text-center">
+            <p className="text-body2 text-ink-muted">© {new Date().getFullYear()} FoodShare. All rights reserved.</p>
+          </div>
+        </footer>
       </main>
     </div>
   );

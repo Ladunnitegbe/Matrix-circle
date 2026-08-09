@@ -1,76 +1,8 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ---------------------------------------------------------
-   DEPRECATED — legacy design tokens (pre-Figma design system).
-   Kept temporarily so already-built components (Button, Card,
-   ListingCard, etc.) don't break before their own migration to
-   the Tailwind theme in tailwind.config.js. Once each component
-   is rebuilt against the Tailwind theme, its matching variables
-   below should be deleted. Do NOT reference these in any new
-   component — use Tailwind theme classes instead (see
-   tailwind.config.js for the current color/type/radius scale).
-   --------------------------------------------------------- */
-:root {
-  /* --- Color: green = trust / vendor actions --- */
-  --green-900: #122E22;
-  --green-700: #1F6B45;
-  --green-600: #26804F;
-  --green-500: #2E9459;
-  --green-100: #DCEEDF;
-  --green-050: #EEF6EF;
-
-  /* --- Color: orange = time-pressure / claim actions --- */
-  --orange-700: #B94E1C;
-  --orange-600: #D0631F;
-  --orange-500: #E8772C;
-  --orange-100: #FBE2CA;
-  --orange-050: #FDF0E2;
-
-  /* --- Color: status --- */
-  --red-600: #C0432E;
-  --red-100: #F7DEDA;
-
-  /* --- Neutrals --- */
-  --bg: #F7F5EC;
-  --paper: #FFFFFF;
-  --paper-sunk: #F0EDE1;
-  --line: #E3DECB;
-  --ink: #16261F;
-  --ink-soft: #57685F;
-  --ink-faint: #8A9790;
-
-  /* --- Radii --- */
-  --radius-s: 10px;
-  --radius-m: 16px;
-  --radius-l: 26px;
-
-  /* --- Type --- */
-  --font-display: 'Space Grotesk', sans-serif;
-  --font-body: 'Inter', sans-serif;
-  --font-mono: 'IBM Plex Mono', monospace;
-}
-
-*, *::before, *::after {
-  box-sizing: border-box;
-}
-
-html, body, #root {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-}
-
-body {
-  background: var(--bg);
-  font-family: var(--font-body);
-  color: var(--ink);
-  -webkit-font-smoothing: antialiased;
-}
-
-button, input, select {
-  font: inherit;
-  color: inherit;
-}
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { margin: 0; padding: 0; height: 100%; }
+body { background: #faf9f6; font-family: 'Inter', sans-serif; color: #1a1a1a; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; color: inherit; }

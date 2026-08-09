@@ -21,7 +21,6 @@ const ACCOUNT_TYPE_OPTIONS = [
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
-
 function digitsOnly(value) {
   return value.replace(/\D/g, '');
 }
@@ -36,7 +35,7 @@ export default function RegistrationPage() {
   const [password, setPassword] = useState('');
   const [charityRegNumber, setCharityRegNumber] = useState('');
   const [businessName, setBusinessName] = useState('');
-  const [location, setLocation] = useState(null); // { lat, lng } | null
+  const [location, setLocation] = useState(null);
 
   const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState('');
@@ -57,29 +56,20 @@ export default function RegistrationPage() {
 
   function validate() {
     const next = {};
-
-    if (fullName.trim().length < 2) next.fullName = 'Enter your full name (min 2 characters).';
+    if (fullName.trim().length < 2) next.fullName = 'Enter your name (min 2 characters).';
     if (!email.trim()) next.email = 'Enter your email address.';
     else if (!isValidEmail(email)) next.email = 'Enter a valid email address.';
 
     const phoneDigits = digitsOnly(phoneNumber);
-    if (phoneDigits.length < 10 || phoneDigits.length > 15) {
-      next.phoneNumber = 'Enter a valid phone number (10–15 digits).';
-    }
+    if (phoneDigits.length < 10 || phoneDigits.length > 15) next.phoneNumber = 'Enter a valid phone number (10–15 digits).';
 
     if (password.length < 8) next.password = 'Minimum of 8 characters.';
 
-    if (isCharity && charityRegNumber.trim().length < 3) {
-      next.charityRegNumber = 'Enter your registration number (min 3 characters).';
-    }
+    if (isCharity && charityRegNumber.trim().length < 3) next.charityRegNumber = 'Enter your registration number (min 3 characters).';
 
     if (isVendor) {
-      if (businessName.trim().length < 2) {
-        next.businessName = 'Enter your business or vendor name (min 2 characters).';
-      }
-      if (!location) {
-        next.location = 'Set your location to continue.';
-      }
+      if (businessName.trim().length < 2) next.businessName = 'Enter your business or vendor name (min 2 characters).';
+      if (!location) next.location = 'Set your location to continue.';
     }
 
     setFieldErrors(next);
@@ -91,13 +81,7 @@ export default function RegistrationPage() {
     setFormError('');
     if (!validate()) return;
 
-    const payload = {
-      email,
-      phoneNumber,
-      password,
-      role: accountType,
-      name: fullName,
-    };
+    const payload = { email, phoneNumber, password, role: accountType, name: fullName };
     if (isCharity) payload.charityRegNumber = charityRegNumber;
     if (isVendor) {
       payload.businessName = businessName;
@@ -108,7 +92,8 @@ export default function RegistrationPage() {
     try {
       const data = await register(payload);
       setSession(data.token, data.account);
-      navigate('/discover');
+      const destination = data.account.role === 'vendor' ? '/vendor/dashboard' : '/discover';
+      navigate(destination);
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.errors?.length) {
@@ -123,8 +108,6 @@ export default function RegistrationPage() {
         } else if (err.msg === 'Phone number already registered') {
           setFieldErrors((prev) => ({ ...prev, phoneNumber: err.msg }));
         } else {
-          // Covers the vendor businessName/coordinates message, 429,
-          // and network failures — all plain-`msg` errors per the docs.
           setFormError(err.msg);
         }
       } else {
@@ -150,7 +133,7 @@ export default function RegistrationPage() {
 
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
         <Input
-          label="Full Name/Business Name"
+          label="Name"
           placeholder={namePlaceholder}
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
@@ -181,13 +164,7 @@ export default function RegistrationPage() {
           required
         />
 
-        <Select
-          label="Account Type"
-          value={accountType}
-          onChange={(e) => setAccountType(e.target.value)}
-          options={ACCOUNT_TYPE_OPTIONS}
-          required
-        />
+        <Select label="Account Type" value={accountType} onChange={(e) => setAccountType(e.target.value)} options={ACCOUNT_TYPE_OPTIONS} required />
 
         {isCharity && (
           <Input
@@ -212,13 +189,7 @@ export default function RegistrationPage() {
               caption1={fieldErrors.businessName}
               required
             />
-            <LocationField
-              value={location}
-              onLocate={setLocation}
-              error={Boolean(fieldErrors.location)}
-              caption1={fieldErrors.location}
-              required
-            />
+            <LocationField value={location} onLocate={setLocation} error={Boolean(fieldErrors.location)} caption1={fieldErrors.location} required />
           </>
         )}
 
