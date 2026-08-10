@@ -41,7 +41,8 @@ export default function LoginPage() {
     try {
       const data = await login({ email, password });
       setSession(data.token, data.account);
-      const destination = data.account.role === 'vendor' ? '/vendor/dashboard' : '/discover';
+      const destination =
+        data.account.role === 'vendor' ? '/vendor/dashboard' : data.account.role === 'admin' ? '/admin' : '/discover';
       navigate(destination);
     } catch (err) {
       if (err instanceof ApiError) {

@@ -16,3 +16,12 @@ export function getListing(id) {
 export function createListing(payload) {
   return protectedRequest('/listings', { method: 'POST', body: payload });
 }
+
+/**
+ * Real endpoint (`PATCH /api/listings/:id/confirm-pickup`, mounted via
+ * `claim.route.ts`) — not mocked. Used by the vendor Dashboard's
+ * "Mark Picked Up" action on a claimed listing.
+ */
+export function confirmPickup(id) {
+  return protectedRequest(`/listings/${id}/confirm-pickup`, { method: 'PATCH' });
+}
