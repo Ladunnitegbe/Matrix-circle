@@ -48,6 +48,22 @@ ADMIN_PASSWORD=
 
 ---
 
+## Admin account and admin routes
+
+The backend supports an admin user who can approve charity account verifications.
+
+- `ADMIN_EMAIL`, `ADMIN_PHONE`, and `ADMIN_PASSWORD` are used to seed a default admin account.
+- Admin users must authenticate with a valid JWT token.
+- The admin-only route is:
+
+```http
+PATCH /api/admin/charities/:userId/verify
+```
+
+This route verifies a charity account and requires the authenticated user to have the `admin` role.
+
+---
+
 ## Start the server
 
 ```bash
