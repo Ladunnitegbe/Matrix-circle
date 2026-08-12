@@ -23,9 +23,13 @@ import { clearSession, getAccount } from '../../lib/authStorage.js';
  * that listing's detail/hold routes; without it, they render as
  * inert labels rather than linking somewhere meaningless.
  *
- * "Profile" only appears for vendors here, matching the Figma (which
- * only shows it inside the vendor sidebar context) — no design has
- * been shown yet for a recipient/charity profile screen.
+ * "Profile" appears for every role now — vendors link to
+ * `/vendor/profile`, individual/charity accounts link to the new
+ * `/profile` (RecipientProfilePage). The original comment here said
+ * this only showed for vendors "since no design has been shown yet
+ * for a recipient/charity profile screen" — that's no longer true:
+ * `profile_-_recipient_-_desktop.png` does show "Profile" in this
+ * exact sidebar slot (its content area just happened to be blank).
  */
 function NavItem({ to, label, active, disabled }) {
   const classes = [
@@ -75,9 +79,11 @@ export default function AppNav({ listingId, onCloseMobile }) {
       onClose={onCloseMobile}
       footer={
         <div className="flex flex-col gap-2">
-          {isVendor && (
-            <NavItem to="/vendor/profile" label="Profile" active={location.pathname === '/vendor/profile'} />
-          )}
+          <NavItem
+            to={isVendor ? '/vendor/profile' : '/profile'}
+            label="Profile"
+            active={location.pathname === (isVendor ? '/vendor/profile' : '/profile')}
+          />
           <Button color="accent" variant="outlined" fullWidth onClick={handleLogout} iconLeft={<LogoutIcon />}>
             Logout
           </Button>

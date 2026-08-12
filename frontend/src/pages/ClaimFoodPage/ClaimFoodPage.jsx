@@ -3,44 +3,100 @@ import { useNavigate, useParams } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout/DashboardLayout.jsx';
 import AppNav from '../../components/AppNav/AppNav.jsx';
 import Card from '../../components/Card/Card.jsx';
-import Badge from '../../components/Badge/Badge.jsx';
+import Pill from '../../components/Pill/Pill.jsx';
 import Button from '../../components/Button/Button.jsx';
+import Alert from '../../components/Alert/Alert.jsx';
 import Loading from '../../components/Loading/Loading.jsx';
 import ErrorState from '../../components/ErrorState/ErrorState.jsx';
-import { ClockIcon, ForkKnifeIcon, PinIcon } from '../../components/Icon/Icon.jsx';
-import { getListing } from '../../api/listings.js';
+import { ForkKnifeIcon } from '../../components/Icon/Icon.jsx';
+import { getListing, claimListing } from '../../api/listings.js';
+import { getUserMe } from '../../api/users.js';
+import { getCurrentPosition, distanceMeters } from '../../lib/geolocation.js';
 import { getAccount } from '../../lib/authStorage.js';
 import { ApiError } from '../../lib/apiClient.js';
 import { trackEvent } from '../../lib/analytics.js';
 
 /**
- * Claim Food — matches `claim_food_-_recipient.png` /
- * `claim_food_-_charity.png` / `claim_food_-_organization_-_desktop.png`.
- * The listing itself is fetched for real via `GET /listings/:id`. The
- * claim *action* is NOT wired to any backend call — `POST
- * /listings/:id/claim` is still listed as "Not Yet Available" in the
- * API docs. Tapping the button navigates to a local-only hold screen
- * (`ReleaseClaimPage`) with the listing passed via router state;
- * nothing is persisted server-side yet.
+ * Claim Food — matches `claim_food_-_recipient(-desktop).png` (the
+ * claim card) and `claim_food_-_charity.png` /
+ * `-organization_-_desktop.png` (the unverified-charity "Pending
+ * verification" screen). Rebuilt from the ground up against these —
+ * the previous version had an extra "minutes until pickup" info block
+ * the Figma doesn't show, light Badge pills instead of the dark ones
+ * the design actually uses, and a role-based button label
+ * ("Claim All Portions" / "Claim A Portion") with no Figma evidence
+ * behind it. All three cut; the button now always reads "Claim this
+ * listing", matching the only screenshot that shows one at all.
  *
- * Firebase/GA: fires `claim_attempted` from the tracking plan the
- * instant the button is tapped — the plan explicitly says to fire
- * this *before* the API call resolves, which lines up naturally here
- * since there's no real API call to wait for yet. `claim_id` is a
- * locally-generated placeholder (`crypto.randomUUID()`), since no
- * backend claim record exists to issue a real one — flagged in the
- * property itself via `claim_id_is_placeholder: true` rather than
- * silently passing off a fake id as if it were real.
+ * REAL CLAIM ACTION — the previous version explicitly did NOT call any
+ * backend for the claim itself (`POST /listings/:id/claim` was listed
+ * as "Not Yet Available" at the time). That's no longer true:
+ * `PATCH /listings/:id/claim` (`claim.route.ts`) is real, and is what
+ * this page now calls via `api/listings.js: claimListing`.
  *
- * Button label depends on account role: charity AND organization
- * accounts both see "Claim All Portions" (both map to the API's
- * `role: "charity"` — "organization" is just how the Figma labels the
- * charity account type, not a separate role), everyone else sees
- * "Claim A Portion".
+ * BLOCKED STATE — the backend rejects a claim from an unverified
+ * charity account with a 403 (`claim.service.ts`:
+ * "Charity account pending verification — claiming is not yet
+ * available"). Rather than only catching that reactively after a
+ * failed claim attempt, this page checks proactively: if the account
+ * role is `charity`, it fetches `GET /users/me` (new — see
+ * `api/users.js`, nothing previously called this for a non-vendor
+ * account) before ever showing the claim card, and renders the
+ * "Pending verification" screen instead if `charityVerifiedAt` is
+ * unset. That's a real, current status check, not a guess.
+ *
+ * Distance is computed the same way as on Discover Food — real
+ * `distanceMeters` from the user's captured coordinates, not
+ * server-provided (no endpoint returns one). Unlike Discover Food,
+ * though, geolocation failure here doesn't block the page: claiming
+ * doesn't need it, so the Distance row is just omitted if location
+ * isn't available rather than showing an ErrorState over the whole
+ * page.
+ *
+ * Analytics: `claim_page_viewed` fires once on load (new — the
+ * previous version had no page-view event). `claim_attempted` still
+ * fires the instant the button is tapped (before the API call
+ * resolves), matching the Event Tracking Plan's documented behavior —
+ * but the placeholder `claim_id`/`claim_id_is_placeholder` properties
+ * are gone, since there's no real claim id to fake or to wait for
+ * (same reasoning already applied to ConfirmPickupPage). Two new
+ * events cover the outcome the previous version had no way to
+ * express, since previously there was no real API call to resolve or
+ * fail: `claim_succeeded` and `claim_failed`. Neither is part of the
+ * original Event Tracking Plan — same extension caveat noted on every
+ * other page's analytics in this project.
+ *
+ * KNOWN GAP CARRIED OVER FROM DISCOVER FOOD: `GET /listings/:id`
+ * doesn't populate a vendor name or address, so "Location" still
+ * stands in for a resolved address — same reasoning as Discover
+ * Food's card subtitle.
+ *
+ * NOT IN SCOPE HERE, flagged for a follow-up: `ReleaseClaimPage.jsx`
+ * (the "Your Claim" hold screen this page navigates to on success)
+ * still runs on a hardcoded local countdown and doesn't call any
+ * backend to release a hold — there's no release/unclaim endpoint to
+ * call yet, either. Now that a claim here is real, that screen's
+ * "Release Hold" button doesn't actually release anything server-side
+ * — the listing stays `claimed` until the backend's own 15-minute
+ * hold naturally expires. Worth a dedicated pass.
  */
-function minutesUntil(pickupByTime) {
-  const diffMs = new Date(pickupByTime).getTime() - Date.now();
-  return Math.max(0, Math.round(diffMs / 60000));
+function formatTime(dateStr) {
+  return new Date(dateStr).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function formatDistance(meters) {
+  if (meters == null) return null;
+  return meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)}km`;
+}
+
+function getInitials(name) {
+  return (name || '')
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join('')
+    .toUpperCase();
 }
 
 export default function ClaimFoodPage() {
@@ -48,19 +104,48 @@ export default function ClaimFoodPage() {
   const navigate = useNavigate();
   const account = getAccount();
 
-  const [phase, setPhase] = useState('loading');
+  const [phase, setPhase] = useState('loading'); // loading | error | blocked | success
   const [listing, setListing] = useState(null);
+  const [claimant, setClaimant] = useState(null); // { name, accountType, charityVerifiedAt } — only fetched for charity accounts
+  const [distanceM, setDistanceM] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [claiming, setClaiming] = useState(false);
+  const [claimError, setClaimError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
+
     async function load() {
       setPhase('loading');
       try {
-        const data = await getListing(listingId);
-        if (!cancelled) {
-          setListing(data.listing);
-          setPhase('success');
+        const isCharity = account?.role === 'charity';
+        const [listingData, userData] = await Promise.all([
+          getListing(listingId),
+          isCharity ? getUserMe() : Promise.resolve(null),
+        ]);
+        if (cancelled) return;
+
+        setListing(listingData.listing);
+
+        const blocked = isCharity && !userData.user.charityVerifiedAt;
+        if (blocked) {
+          setClaimant(userData.user);
+          setPhase('blocked');
+          trackEvent('claim_page_viewed', { user_id: account?.id, listing_id: listingId, blocked: true });
+          return;
+        }
+
+        setPhase('success');
+        trackEvent('claim_page_viewed', { user_id: account?.id, listing_id: listingId, blocked: false });
+
+        try {
+          const coords = await getCurrentPosition();
+          if (cancelled) return;
+          const listingCoords = { lat: listingData.listing.location.coordinates[1], lng: listingData.listing.location.coordinates[0] };
+          setDistanceM(distanceMeters(coords, listingCoords));
+        } catch {
+          // Distance is supplementary here (unlike Discover Food) — claiming doesn't need it, so a denied/unavailable
+          // location just means no distance pill, not a blocked page.
         }
       } catch (err) {
         if (!cancelled) {
@@ -69,21 +154,33 @@ export default function ClaimFoodPage() {
         }
       }
     }
+
     load();
-    return () => { cancelled = true; };
-  }, [listingId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [listingId, account?.id, account?.role]);
 
-  function handleClaim() {
-    const claimId = crypto.randomUUID();
-
-    trackEvent('claim_attempted', {
-      user_id: account?.id,
-      listing_id: listingId,
-      claim_id: claimId,
-      claim_id_is_placeholder: true,
-    });
-
-    navigate(`/claim/${listingId}/hold`, { state: { listing } });
+  async function handleClaim() {
+    setClaimError('');
+    setClaiming(true);
+    trackEvent('claim_attempted', { user_id: account?.id, listing_id: listingId });
+    try {
+      const data = await claimListing(listingId);
+      trackEvent('claim_succeeded', {
+        user_id: account?.id,
+        listing_id: listingId,
+        vendor_id: data.listing.vendorId,
+        hold_expires_at: data.listing.claim?.holdExpiresAt,
+      });
+      navigate(`/claim/${listingId}/hold`, { state: { listing: data.listing } });
+    } catch (err) {
+      const message = err instanceof ApiError ? err.msg : 'Something went wrong claiming this listing. Please try again.';
+      trackEvent('claim_failed', { user_id: account?.id, listing_id: listingId, reason: message });
+      setClaimError(message);
+    } finally {
+      setClaiming(false);
+    }
   }
 
   if (phase === 'loading') {
@@ -100,48 +197,80 @@ export default function ClaimFoodPage() {
     return (
       <DashboardLayout renderSidebar={(onClose) => <AppNav listingId={listingId} onCloseMobile={onClose} />}>
         <div className="mx-auto max-w-lg">
-          <ErrorState title="This food listing is no longer available." description={errorMessage} actionLabel="Back to feed" onAction={() => navigate('/discover')} />
+          <ErrorState
+            title="This food listing is no longer available."
+            description={errorMessage}
+            actionLabel="Back to feed"
+            onAction={() => navigate('/discover')}
+          />
         </div>
       </DashboardLayout>
     );
   }
 
-  const minutesLeft = minutesUntil(listing.pickupByTime);
-  const isCharity = account?.role === 'charity';
+  if (phase === 'blocked') {
+    return (
+      <DashboardLayout renderSidebar={(onClose) => <AppNav listingId={listingId} onCloseMobile={onClose} />}>
+        <div className="mx-auto max-w-lg">
+          <Card padding="md">
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-accent-green text-body2 font-bold text-white">
+                {getInitials(claimant.name)}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-body1 font-bold text-ink">{claimant.name}</p>
+                <p className="text-caption text-ink-faint capitalize">{claimant.accountType}</p>
+              </div>
+            </div>
+            <span className="mt-3 inline-flex items-center rounded-pill bg-accent-orange-light px-2.5 py-1 text-caption font-bold text-accent-orange">
+              Pending verification
+            </span>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const distanceLabel = formatDistance(distanceM);
 
   return (
     <DashboardLayout renderSidebar={(onClose) => <AppNav listingId={listingId} onCloseMobile={onClose} />}>
       <div className="mx-auto max-w-lg">
-        <Card padding="md">
+        <h1 className="text-h4 font-bold text-ink">Claim food listing</h1>
+
+        {claimError && (
+          <Alert tone="error" className="mt-4">
+            {claimError}
+          </Alert>
+        )}
+
+        <Card padding="md" className="mt-4">
           <div className="flex h-40 items-center justify-center rounded-xl bg-accent-green-light text-ink">
             <ForkKnifeIcon width={32} height={32} />
           </div>
-          <p className="mt-4 text-sh1 font-bold text-ink">{listing.itemDescription}</p>
-          <p className="mt-1 flex items-center gap-1 text-caption text-ink-faint">
-            <PinIcon /> Location
-          </p>
+          <p className="mt-4 text-body1 font-bold text-ink">{listing.itemDescription}</p>
 
           <div className="mt-3 flex gap-2">
-            <Badge tone="neutral">{listing.price === 'free' ? 'Free' : `₦${listing.price}`}</Badge>
-            <Badge tone="secondary">{listing.category.replace('_', ' ')}</Badge>
-            <span className="ml-auto text-sh2 font-bold text-ink">{listing.quantity} portions</span>
+            <Pill>{listing.category.replace('_', ' ')}</Pill>
+            <Pill>{listing.price === 'free' ? 'Free' : `₦${listing.price}`}</Pill>
           </div>
 
-          <hr className="my-4 border-border" />
-
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-secondary-light text-accent-green">
-              <ClockIcon />
-            </span>
-            <div>
-              <p className="text-body2 font-bold text-ink">{minutesLeft} mins until pickup-by time</p>
-              <p className="text-caption text-ink-faint">Claim locks it for 15 minutes so you can get there.</p>
+          <div className="mt-4 flex flex-col">
+            {distanceLabel && (
+              <div className="flex items-center justify-between border-b border-border py-2.5">
+                <span className="text-body2 font-bold text-ink">Distance</span>
+                <span className="text-body2 text-ink-muted">{distanceLabel}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between border-b border-border py-2.5">
+              <span className="text-body2 font-bold text-ink">Pickup by</span>
+              <span className="text-body2 text-ink-muted">{formatTime(listing.pickupByTime)}</span>
             </div>
           </div>
         </Card>
 
-        <Button color="accent" variant="solid" fullWidth className="mt-4" onClick={handleClaim}>
-          {isCharity ? 'Claim All Portions' : 'Claim A Portion'}
+        <Button color="accent" variant="solid" fullWidth className="mt-4" loading={claiming} disabled={claiming} onClick={handleClaim}>
+          Claim this listing
         </Button>
       </div>
     </DashboardLayout>

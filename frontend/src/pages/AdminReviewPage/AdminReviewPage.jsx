@@ -1,10 +1,12 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout/DashboardLayout.jsx';
 import AdminNav from '../../components/AdminNav/AdminNav.jsx';
 import EmptyState from '../../components/EmptyState/EmptyState.jsx';
 import { ShieldIcon } from '../../components/Icon/Icon.jsx';
 import { subscribe, getSnapshot } from '../../lib/mockCharities.js';
+import { getAccount } from '../../lib/authStorage.js';
+import { trackEvent } from '../../lib/analytics.js';
 
 /**
  * Admin — Review Charity Orgs. Matches the "Admin" table screenshot:
@@ -15,10 +17,25 @@ import { subscribe, getSnapshot } from '../../lib/mockCharities.js';
  * review — not because charity verification is unbuilt. Approving a
  * charity (on the detail page this links to) calls the real backend
  * endpoint; see `lib/mockCharities.js` for the full breakdown.
+ *
+ * Analytics: `admin_review_viewed` fires once on load (same
+ * fire-once-on-mount pattern as `profile_viewed`), and
+ * `charity_review_opened` fires when an admin clicks through to a
+ * specific charity. Neither is part of the original Event Tracking
+ * Plan — that plan doesn't cover an admin surface at all — these are
+ * reasonable, consistently-named extensions, same caveat already
+ * noted on `charity_approved`/`charity_rejected` in
+ * AdminCharityDetailPage.
  */
 export default function AdminReviewPage() {
+  const account = getAccount();
   const charities = useSyncExternalStore(subscribe, getSnapshot);
   const pending = charities.filter((c) => c.status === 'pending');
+
+  useEffect(() => {
+    trackEvent('admin_review_viewed', { admin_id: account?.id, pending_count: pending.length });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <DashboardLayout renderSidebar={(onClose) => <AdminNav onCloseMobile={onClose} />}>
@@ -45,7 +62,11 @@ export default function AdminReviewPage() {
                   <span className="font-semibold text-ink">{charity.name}</span>
                   <span className="text-ink-muted">{charity.regNumber}</span>
                   <span className="text-ink-muted">{charity.signUpDate}</span>
-                  <Link to={`/admin/charities/${charity.id}`} className="text-right font-bold text-accent-orange hover:text-accent-orange-normal-hover">
+                  <Link
+                    to={`/admin/charities/${charity.id}`}
+                    onClick={() => trackEvent('charity_review_opened', { admin_id: account?.id, charity_id: charity.id })}
+                    className="text-right font-bold text-accent-orange hover:text-accent-orange-normal-hover"
+                  >
                     Review
                   </Link>
                 </div>
@@ -57,3 +78,4 @@ export default function AdminReviewPage() {
     </DashboardLayout>
   );
 }
+

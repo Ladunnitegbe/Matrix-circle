@@ -4,11 +4,11 @@ import DashboardLayout from '../../components/DashboardLayout/DashboardLayout.js
 import AppNav from '../../components/AppNav/AppNav.jsx';
 import Chip from '../../components/Chip/Chip.jsx';
 import Card from '../../components/Card/Card.jsx';
-import Badge from '../../components/Badge/Badge.jsx';
+import Pill from '../../components/Pill/Pill.jsx';
 import Loading from '../../components/Loading/Loading.jsx';
 import EmptyState from '../../components/EmptyState/EmptyState.jsx';
 import ErrorState from '../../components/ErrorState/ErrorState.jsx';
-import { ClockIcon, PinIcon, ForkKnifeIcon } from '../../components/Icon/Icon.jsx';
+import { ForkKnifeIcon } from '../../components/Icon/Icon.jsx';
 import { getListings } from '../../api/listings.js';
 import { getCurrentPosition, distanceMeters } from '../../lib/geolocation.js';
 import { getAccount } from '../../lib/authStorage.js';
@@ -18,14 +18,28 @@ import { trackEvent } from '../../lib/analytics.js';
 /**
  * Discover Food — the listings page. Matches
  * `discover_food_-_recipient_-_desktop.png` / `-mobile.png`: category
- * chips, then a list of listing cards, inside the new sidebar shell
+ * chips, then a list of listing cards, inside the sidebar shell
  * (`AppNav` highlights "Discovery Feed").
  *
- * KNOWN GAP, not silently papered over: the Figma cards show a vendor
- * business name ("Ma's Kitchen") and a resolved "Location" line.
- * `GET /listings` only returns `vendorId` (no name) and raw
- * coordinates (no address) — no documented endpoint resolves either.
- * Cards below only show fields the API actually returns.
+ * CARD LAYOUT — rebuilt to match the Figma card precisely: a small
+ * icon square on the left, title + one subtitle line, then two dark
+ * pills (distance, time left) underneath. No separate category badge
+ * — the Figma doesn't show one on the card itself (the filter chips
+ * above already cover that).
+ *
+ * ONE REMAINING, DELIBERATE GAP: the Figma subtitle line reads
+ * "Jane's Kitchen · Free · 6 portions" — a vendor business name.
+ * `GET /listings` (`listing.service.ts: getFeed`) does a plain
+ * `Listing.find(...)`, no `.populate('vendorId')`, so `vendorId` is
+ * just a raw id with no name attached — there's still no documented
+ * endpoint that resolves it. The subtitle here shows "Free · 6
+ * portions" (real fields only) instead of fabricating a business
+ * name.
+ *
+ * The "0.4km" pill IS real now, though, not a gap — `distanceMeters`
+ * was already being computed from the user's captured coordinates for
+ * the `listing_viewed` analytics event below; it just wasn't being
+ * shown on the card. Now it's the same real number in both places.
  *
  * Firebase/GA tracking (from the Event Tracking Plan):
  *   - `filter_applied` fires the instant a category chip is tapped.
@@ -37,6 +51,14 @@ import { trackEvent } from '../../lib/analytics.js';
  *     DOM. `distance_m` is a real haversine distance computed from the
  *     user's captured coordinates and the listing's own coordinates —
  *     not invented, since the API doesn't provide a precomputed one.
+ *   - `listing_clicked` is new: fires when a card is actually clicked
+ *     through to (navigation intent), as distinct from the passive,
+ *     dwell-based `listing_viewed`. Neither the previous version of
+ *     this page nor the documented plan (as far as it's visible in
+ *     this repo) had a click-through event at all — Claim/Confirm
+ *     only track the claim action itself, not the click that got a
+ *     shopper there. Added as a reasonable extension, same properties
+ *     as `listing_viewed` for easy funnel comparison between the two.
  *
  * Polling: the API docs say there's no push/websocket update and to
  * poll on an interval — implemented at 45s, the middle of the
@@ -56,6 +78,11 @@ const VIEW_TRACK_DELAY_MS = 5000;
 function minutesUntil(pickupByTime) {
   const diffMs = new Date(pickupByTime).getTime() - Date.now();
   return Math.max(0, Math.round(diffMs / 60000));
+}
+
+function formatDistance(meters) {
+  if (meters == null) return null;
+  return meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)}km`;
 }
 
 export default function DiscoverFoodPage() {
@@ -107,6 +134,21 @@ export default function DiscoverFoodPage() {
     trackEvent('filter_applied', { user_id: account?.id, category: value || 'all' });
   }
 
+  function listingDistanceMeters(listing) {
+    if (!userCoordsRef.current) return null;
+    const listingCoords = { lat: listing.location.coordinates[1], lng: listing.location.coordinates[0] };
+    return distanceMeters(userCoordsRef.current, listingCoords);
+  }
+
+  function handleListingClick(listing, index) {
+    trackEvent('listing_clicked', {
+      user_id: account?.id,
+      listing_id: listing._id,
+      distance_m: listingDistanceMeters(listing),
+      position_in_feed: index,
+    });
+  }
+
   function registerCardRef(listing, index) {
     return (node) => {
       const tracking = viewTrackingRef.current;
@@ -122,11 +164,10 @@ export default function DiscoverFoodPage() {
           if (entry.isIntersecting) {
             state.timer = setTimeout(() => {
               state.fired = true;
-              const listingCoords = { lat: listing.location.coordinates[1], lng: listing.location.coordinates[0] };
               trackEvent('listing_viewed', {
                 user_id: account?.id,
                 listing_id: listing._id,
-                distance_m: userCoordsRef.current ? distanceMeters(userCoordsRef.current, listingCoords) : null,
+                distance_m: listingDistanceMeters(listing),
                 position_in_feed: index,
               });
             }, VIEW_TRACK_DELAY_MS);
@@ -177,24 +218,31 @@ export default function DiscoverFoodPage() {
             <div className="flex flex-col gap-4 tablet:grid tablet:grid-cols-2 tablet:gap-6">
               {listings.map((listing, index) => {
                 const minutesLeft = minutesUntil(listing.pickupByTime);
+                const distanceLabel = formatDistance(listingDistanceMeters(listing));
                 return (
-                  <Link key={listing._id} to={`/claim/${listing._id}`} ref={registerCardRef(listing, index)}>
+                  <Link
+                    key={listing._id}
+                    to={`/claim/${listing._id}`}
+                    ref={registerCardRef(listing, index)}
+                    onClick={() => handleListingClick(listing, index)}
+                  >
                     <Card padding="md" as="article">
-                      <div className="flex h-32 items-center justify-center rounded-xl bg-accent-green-light text-ink">
-                        <ForkKnifeIcon width={28} height={28} />
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-accent-green-light text-ink">
+                          <ForkKnifeIcon />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sh2 font-bold text-ink">{listing.itemDescription}</p>
+                          <p className="mt-0.5 text-caption text-ink-muted">
+                            {listing.price === 'free' ? 'Free' : `₦${listing.price}`} ·{' '}
+                            <span className="font-semibold text-ink">{listing.quantity}</span> portions
+                          </p>
+                        </div>
                       </div>
-                      <p className="mt-3 truncate text-sh2 font-bold text-ink">{listing.itemDescription}</p>
-                      <p className="mt-1 flex items-center gap-1 text-caption text-ink-faint">
-                        <PinIcon /> Location
-                      </p>
                       <div className="mt-3 flex items-center gap-2">
-                        <Badge tone="neutral">{listing.price === 'free' ? 'Free' : `₦${listing.price}`}</Badge>
-                        <Badge tone="secondary">{listing.category.replace('_', ' ')}</Badge>
-                        <span className="ml-auto flex items-center gap-1 text-caption font-semibold text-accent-green">
-                          <ClockIcon /> {minutesLeft}m
-                        </span>
+                        {distanceLabel && <Pill>{distanceLabel}</Pill>}
+                        <Pill>{minutesLeft}m left</Pill>
                       </div>
-                      <p className="mt-2 text-right text-caption text-ink-faint">{listing.quantity} portions</p>
                     </Card>
                   </Link>
                 );
