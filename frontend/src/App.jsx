@@ -1,20 +1,21 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
-import LandingPage from "./pages/LandingPage/LandingPage.jsx";
-import LoginPage from "./pages/LoginPage/LoginPage.jsx";
-import RegistrationPage from "./pages/RegistrationPage/RegistrationPage.jsx";
-import DiscoverFoodPage from "./pages/DiscoverFoodPage/DiscoverFoodPage.jsx";
-import CreateListPage from "./pages/CreateListPage/CreateListPage.jsx";
-import ClaimFoodPage from "./pages/ClaimFoodPage/ClaimFoodPage.jsx";
-import ReleaseClaimPage from "./pages/ReleaseClaimPage/ReleaseClaimPage.jsx";
-import DashboardPage from "./pages/DashboardPage/DashboardPage.jsx";
-import ConfirmPickupPage from "./pages/ConfirmPickupPage/ConfirmPickupPage.jsx";
-import ProfilePage from "./pages/ProfilePage/ProfilePage.jsx";
-import AdminReviewPage from "./pages/AdminReviewPage/AdminReviewPage.jsx";
-import AdminCharityDetailPage from "./pages/AdminCharityDetailPage/AdminCharityDetailPage.jsx";
-import AdminSummaryPage from "./pages/AdminSummaryPage/AdminSummaryPage.jsx";
-import RequireAuth from "./components/RequireAuth/RequireAuth.jsx";
-import { ToastProvider } from "./components/Toast/ToastProvider.jsx";
+import LandingPage from './pages/LandingPage/LandingPage.jsx';
+import LoginPage from './pages/LoginPage/LoginPage.jsx';
+import RegistrationPage from './pages/RegistrationPage/RegistrationPage.jsx';
+import DiscoverFoodPage from './pages/DiscoverFoodPage/DiscoverFoodPage.jsx';
+import CreateListPage from './pages/CreateListPage/CreateListPage.jsx';
+import ClaimFoodPage from './pages/ClaimFoodPage/ClaimFoodPage.jsx';
+import ReleaseClaimPage from './pages/ReleaseClaimPage/ReleaseClaimPage.jsx';
+import DashboardPage from './pages/DashboardPage/DashboardPage.jsx';
+import ConfirmPickupPage from './pages/ConfirmPickupPage/ConfirmPickupPage.jsx';
+import ProfilePage from './pages/ProfilePage/ProfilePage.jsx';
+import RecipientProfilePage from './pages/RecipientProfilePage/RecipientProfilePage.jsx';
+import AdminReviewPage from './pages/AdminReviewPage/AdminReviewPage.jsx';
+import AdminCharityDetailPage from './pages/AdminCharityDetailPage/AdminCharityDetailPage.jsx';
+import AdminSummaryPage from './pages/AdminSummaryPage/AdminSummaryPage.jsx';
+import RequireAuth from './components/RequireAuth/RequireAuth.jsx';
+import { ToastProvider } from './components/Toast/ToastProvider.jsx';
 
 /**
  * App — complete application route table.
@@ -32,6 +33,7 @@ import { ToastProvider } from "./components/Toast/ToastProvider.jsx";
  * - /vendor/dashboard (vendor only)
  * - /vendor/confirm-pickup (vendor only)
  * - /vendor/profile (vendor only)
+ * - /profile (individual or charity only — RecipientProfilePage)
  * - /admin, /admin/charities/:charityId, /admin/summary (admin only)
  *
  * Admin role: the API docs' registration endpoint never accepts
@@ -41,6 +43,18 @@ import { ToastProvider } from "./components/Toast/ToastProvider.jsx";
  * to already exist and log in through the same `/login` page as
  * everyone else, with `RequireAuth role="admin"` gating these routes
  * exactly like `role="vendor"` gates the vendor ones.
+ *
+ * `/profile` is the first route two different roles both need
+ * (`individual` and `charity`) while a third (`vendor`) shouldn't get
+ * it — `RequireAuth`'s `role` prop now accepts an array for exactly
+ * this case (`role={['individual', 'charity']}`), backward compatible
+ * with every single-role usage above it.
+ *
+ * `<ToastProvider>` wraps the whole router — added once Dashboard's
+ * "Mark Picked Up" needed a way to surface success/error feedback via
+ * the `Toast`/`ToastProvider` components (built earlier in this
+ * project but never actually wired in until now); several pages since
+ * (Confirm Pickup, Release Claim, Recipient Profile) use it too.
  *
  * Note: Legacy prototype files under `src/screens/*` and
  * `src/data/listings.js` are intentionally left untouched and can be
@@ -115,6 +129,15 @@ export default function App() {
             element={
               <RequireAuth role="vendor">
                 <ProfilePage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="/profile"
+            element={
+              <RequireAuth role={['individual', 'charity']}>
+                <RecipientProfilePage />
               </RequireAuth>
             }
           />

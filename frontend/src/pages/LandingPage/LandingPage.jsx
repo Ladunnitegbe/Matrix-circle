@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../../components/Navbar/Navbar.jsx';
 import Card from '../../components/Card/Card.jsx';
@@ -5,6 +6,7 @@ import Button from '../../components/Button/Button.jsx';
 import Logo from '../../components/Logo/Logo.jsx';
 import { HeartIcon, GlobeIcon, BoltIcon } from '../../components/Icon/Icon.jsx';
 import { getToken, getAccount } from '../../lib/authStorage.js';
+import { trackEvent } from '../../lib/analytics.js';
 import HeroImage from "../../assets/images/hero_image.png";
 
 
@@ -26,6 +28,28 @@ const CORE_VALUES = [
   { icon: BoltIcon, title: 'Built for Speed', body: 'Designed to be ultra-lightweight. Fast loading times, low data usage, and effortless navigation for everyone.' },
 ];
 
+/**
+ * Analytics on this page (previously had none): `landing_viewed` fires
+ * once on mount for both guests and signed-in visitors. The rest are
+ * click events on the real conversion paths only — in-page anchor
+ * nav, footer "Quick Links" duplicates, and the not-yet-built Policy
+ * links are deliberately left untracked, consistent with how other
+ * pages only track meaningful funnel actions rather than every click.
+ *
+ * `find_food_clicked` / `share_food_clicked` are each shared by two
+ * buttons (hero + final CTA) that lead to the same destination and
+ * intent — a `location` property ('hero' | 'final_cta') distinguishes
+ * placement instead of doubling the event count. `login_clicked` /
+ * `register_clicked` cover the Navbar, footer, and (for login) the
+ * "Already have an account?" link the same way, via `location`
+ * ('navbar' | 'footer' | 'final_cta'). The authenticated Navbar CTA
+ * (Dashboard / Discover Food) gets its own `landing_authed_cta_clicked`
+ * since it's a distinct, already-signed-in action.
+ *
+ * None of this is part of the original Event Tracking Plan — same
+ * extension caveat already noted on the Dashboard and Admin pages'
+ * analytics.
+ */
 export default function LandingPage() {
   const isAuthenticated = Boolean(getToken());
   const account = getAccount();
@@ -35,6 +59,27 @@ export default function LandingPage() {
   const findFoodHref = isAuthenticated ? '/discover' : '/register';
   const shareFoodHref = isAuthenticated ? (isVendor ? '/create-listing' : '/register') : '/register';
 
+  useEffect(() => {
+    trackEvent('landing_viewed', { is_authenticated: isAuthenticated, role: account?.role || null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function trackFindFood(location) {
+    trackEvent('find_food_clicked', { location, destination: findFoodHref, is_authenticated: isAuthenticated });
+  }
+
+  function trackShareFood(location) {
+    trackEvent('share_food_clicked', { location, destination: shareFoodHref, is_authenticated: isAuthenticated });
+  }
+
+  function trackLogin(location) {
+    trackEvent('login_clicked', { location });
+  }
+
+  function trackRegister(location) {
+    trackEvent('register_clicked', { location });
+  }
+
   return (
     <div className="min-h-screen bg-surface">
       <Navbar
@@ -43,15 +88,15 @@ export default function LandingPage() {
         actions={
           !isAuthenticated ? (
             <>
-              <Link to="/login" className="text-body2 font-medium text-ink hover:text-accent-orange">
+              <Link to="/login" onClick={() => trackLogin('navbar')} className="text-body2 font-medium text-ink hover:text-accent-orange">
                 Login
               </Link>
-              <Link to="/register">
+              <Link to="/register" onClick={() => trackRegister('navbar')}>
                 <Button color="accent" variant="solid" fullWidth={false}>Register</Button>
               </Link>
             </>
           ) : (
-            <Link to={primaryAuthedHref}>
+            <Link to={primaryAuthedHref} onClick={() => trackEvent('landing_authed_cta_clicked', { vendor_id: account?.id, destination: primaryAuthedHref })}>
               <Button color="secondary" variant="solid" fullWidth={false}>
                 {isVendor ? 'Dashboard' : 'Discover Food'}
               </Button>
@@ -78,10 +123,10 @@ export default function LandingPage() {
               real-time. Fresh, local, and completely free.
             </p>
             <div className="mt-6 flex flex-col gap-3 tablet:flex-row">
-              <Link to={findFoodHref}>
+              <Link to={findFoodHref} onClick={() => trackFindFood('hero')}>
                 <Button color="secondary" variant="solid" fullWidth={false}>Find Food Nearby</Button>
               </Link>
-              <Link to={shareFoodHref}>
+              <Link to={shareFoodHref} onClick={() => trackShareFood('hero')}>
                 <Button color="accent" variant="solid" fullWidth={false}>Share Surplus Food</Button>
               </Link>
             </div>
@@ -172,17 +217,17 @@ export default function LandingPage() {
             community.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-4 tablet:flex-row">
-            <Link to={findFoodHref}>
+            <Link to={findFoodHref} onClick={() => trackFindFood('final_cta')}>
               <Button color="secondary" variant="solid">Open the Feed</Button>
             </Link>
-            <Link to={shareFoodHref}>
+            <Link to={shareFoodHref} onClick={() => trackShareFood('final_cta')}>
               <Button color="accent" variant="solid">Register as Vendor</Button>
             </Link>
           </div>
           {!isAuthenticated && (
             <p className="mt-5 text-body2 text-ink-muted">
               Already have an account?{' '}
-              <Link to="/login" className="font-semibold text-accent-green hover:underline">Log in</Link>
+              <Link to="/login" onClick={() => trackLogin('final_cta')} className="font-semibold text-accent-green hover:underline">Log in</Link>
             </p>
           )}
         </section>
@@ -203,8 +248,8 @@ export default function LandingPage() {
                 <li><a href="#home" className="text-ink-muted hover:text-accent-orange">Home</a></li>
                 <li><a href="#how-it-works" className="text-ink-muted hover:text-accent-orange">How It Works</a></li>
                 <li><a href="#for-vendors" className="text-ink-muted hover:text-accent-orange">For Vendors</a></li>
-                <li><Link to="/login" className="text-ink-muted hover:text-accent-orange">Login</Link></li>
-                <li><Link to="/register" className="text-ink-muted hover:text-accent-orange">Register</Link></li>
+                <li><Link to="/login" onClick={() => trackLogin('footer')} className="text-ink-muted hover:text-accent-orange">Login</Link></li>
+                <li><Link to="/register" onClick={() => trackRegister('footer')} className="text-ink-muted hover:text-accent-orange">Register</Link></li>
               </ul>
             </div>
 

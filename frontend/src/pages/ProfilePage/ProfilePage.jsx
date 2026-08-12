@@ -32,6 +32,14 @@ import { trackEvent } from '../../lib/analytics.js';
  * exists and hiding it behind static placeholder copy would be worse
  * than showing what's actually available.
  *
+ * Header now matches every other vendor page (Dashboard, Confirm
+ * Pickup, Create List): "• Jane's Kitchen" alongside the title. The
+ * Figma (`profile_-_vendor_-_desktop.png`) always showed this — it
+ * just hadn't been added here yet, the one inconsistency versus the
+ * rest of the vendor experience. Fixed now since RecipientProfilePage
+ * uses this file as its style baseline and shouldn't inherit a gap
+ * this page itself no longer has.
+ *
  * Analytics: `profile_viewed` fires on load. Not part of the original
  * Event Tracking Plan spreadsheet (profile viewing wasn't in that
  * 11-event list) — added here as a reasonable, consistently-named
@@ -76,7 +84,15 @@ export default function ProfilePage() {
   return (
     <DashboardLayout renderSidebar={(onClose) => <AppNav onCloseMobile={onClose} />}>
       <div className="mx-auto max-w-xl">
-        <h1 className="text-h4 font-bold text-ink">Profile</h1>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-h4 font-bold text-ink">Profile</h1>
+          {phase === 'success' && (
+            <span className="flex items-center gap-2 text-body1 font-semibold text-ink">
+              <span className="h-2.5 w-2.5 rounded-full bg-accent-green" aria-hidden="true" />
+              {vendor.businessName}
+            </span>
+          )}
+        </div>
 
         <div className="mt-4">
           {phase === 'loading' && <Loading title="Loading your profile…" description="Fetching your vendor details" />}

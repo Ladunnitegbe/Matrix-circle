@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useSyncExternalStore } from 'react';
 import DashboardLayout from '../../components/DashboardLayout/DashboardLayout.jsx';
@@ -32,8 +32,9 @@ const STATUS_LABEL = { pending: 'Pending', approved: 'Approved', rejected: 'Reje
  * a charity yet. See `lib/mockCharities.js` for the full breakdown of
  * what's real vs. mocked here.
  *
- * Analytics: `charity_approved` / `charity_rejected` fire on action.
- * Not part of the original Event Tracking Plan (that plan didn't
+ * Analytics: `charity_review_viewed` fires once on load, and
+ * `charity_approved` / `charity_rejected` fire on action. None of
+ * this is part of the original Event Tracking Plan (that plan didn't
  * cover an admin surface at all) — added as reasonable, consistently
  * named extensions, same caveat as `profile_viewed` and
  * `picked_up_confirmed` before it.
@@ -47,6 +48,13 @@ export default function AdminCharityDetailPage() {
 
   const [approving, setApproving] = useState(false);
   const [approveError, setApproveError] = useState('');
+
+  useEffect(() => {
+    if (charity) {
+      trackEvent('charity_review_viewed', { admin_id: account?.id, charity_id: charity.id, status: charity.status });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [charity?.id]);
 
   if (!charity) {
     return (

@@ -1,22 +1,33 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import DashboardLayout from '../../components/DashboardLayout/DashboardLayout.jsx';
 import AdminNav from '../../components/AdminNav/AdminNav.jsx';
 import EmptyState from '../../components/EmptyState/EmptyState.jsx';
 import { ShieldIcon } from '../../components/Icon/Icon.jsx';
 import { subscribe, getSnapshot } from '../../lib/mockCharities.js';
+import { getAccount } from '../../lib/authStorage.js';
+import { trackEvent } from '../../lib/analytics.js';
 
 /**
  * Admin — Summary. Matches the second "Admin" table screenshot: same
  * columns plus a green "Status" column. Shows charities that have
  * already been decided (approved or rejected) — the reviewed history,
  * as distinct from Review's pending queue.
+ *
+ * Analytics: `admin_summary_viewed` fires once on load, same
+ * extension caveat as `admin_review_viewed` in AdminReviewPage.
  */
 const STATUS_LABEL = { approved: 'Approved', rejected: 'Rejected' };
 const STATUS_CLASS = { approved: 'text-accent-green font-bold', rejected: 'text-danger font-bold' };
 
 export default function AdminSummaryPage() {
+  const account = getAccount();
   const charities = useSyncExternalStore(subscribe, getSnapshot);
   const decided = charities.filter((c) => c.status !== 'pending');
+
+  useEffect(() => {
+    trackEvent('admin_summary_viewed', { admin_id: account?.id, decided_count: decided.length });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <DashboardLayout renderSidebar={(onClose) => <AdminNav onCloseMobile={onClose} />}>

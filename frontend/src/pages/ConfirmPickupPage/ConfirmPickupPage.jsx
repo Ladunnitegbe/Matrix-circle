@@ -1,47 +1,74 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import DashboardLayout from '../../components/DashboardLayout/DashboardLayout.jsx';
 import AppNav from '../../components/AppNav/AppNav.jsx';
 import Button from '../../components/Button/Button.jsx';
+import Loading from '../../components/Loading/Loading.jsx';
 import EmptyState from '../../components/EmptyState/EmptyState.jsx';
+import ErrorState from '../../components/ErrorState/ErrorState.jsx';
 import { ForkKnifeIcon } from '../../components/Icon/Icon.jsx';
+import { getVendorMe, getVendorListings } from '../../api/vendors.js';
+import { confirmPickup } from '../../api/listings.js';
 import { getAccount } from '../../lib/authStorage.js';
 import { trackEvent } from '../../lib/analytics.js';
+import { ApiError } from '../../lib/apiClient.js';
+import { useToast } from '../../components/Toast/ToastProvider.jsx';
 
 /**
- * Confirm Pickup — matches `confirm_pickup_-_vendor_-_desktop.png`:
- * a responsive grid of "Pending" cards (Claimed by / Claimed at /
- * live "Hold expires in" countdown / Confirm Pickup button).
+ * Confirm Pickup — matches `confirm_pickup_-_vendor_-_desktop.png`: a
+ * responsive grid of "Pending" cards (Claimed by / Claimed at / live
+ * "Hold expires in" countdown / Confirm Pickup button), plus the same
+ * business-name header used on the Dashboard.
  *
- * DATA SOURCE, stated plainly: this still can't be wired to a real
- * backend. `PATCH /listings/:id/confirm-pickup` is "Not Yet Available",
- * and — more fundamentally — there's still no way to know *which*
- * listings have a pending claim at all, since `POST /listings/:id/claim`
- * doesn't exist either and `GET /listings` only ever returns
- * `state: "active"` listings (never a claimed one). So unlike the
- * Dashboard (which combines two real endpoints), this screen has no
- * real data source available anywhere in the documented API.
+ * REBUILT ON REAL DATA — nothing here is mocked anymore. The previous
+ * version ran on local mock state because, at the time, there was no
+ * way to know which listings had a pending claim, and no working
+ * confirm-pickup endpoint. Both now exist:
+ *   - `GET /vendors/listings` (already used by the Dashboard) returns
+ *     ALL of this vendor's listings, any state, with `claim`
+ *     populated — filtered here to `state === 'claimed'` for the
+ *     pending queue.
+ *   - `PATCH /listings/:id/confirm-pickup` (also already wired for
+ *     the Dashboard's "Mark Picked Up") is the same real call used
+ *     here.
  *
- * What's built instead: the full visual/interactive layer running on
- * local mock state — two seeded "pending" entries matching the Figma
- * exactly, each with a real, independently-ticking countdown (not
- * static text). Confirming a card removes it locally and fires the
- * `picked_up_confirmed` analytics event; nothing is persisted or sent
- * to a backend. Swap the mock seed + `handleConfirm`'s local removal
- * for a real fetch + `PATCH` call the moment both endpoints exist —
- * everything else (layout, countdown, empty state) is already real.
+ * "Claimed by" shows the claimant type (Individual/Charity) — from
+ * `claim.claimantType`, which the backend sets to the claimant's
+ * `accountType` at claim time. This matches the Figma literally: both
+ * Pending cards in the design show a type, not a claimant's name
+ * (unlike the Dashboard's listing rows, which do show a name where
+ * one's available).
  *
- * Analytics: `picked_up_confirmed` fires on confirm, mirroring the
- * Event Tracking Plan's Frontend-fired "Vendor: 'Mark picked up'
- * button" event (this app's equivalent action). Property names follow
- * the same pattern as the plan's other events (`vendor_id`,
- * `listing_id`); `claim_id` is a mock placeholder here since no real
- * claim record exists yet — worth double-checking against the exact
- * tracking-plan spreadsheet once real claim IDs exist.
+ * "Hold expires in" is a real, independently-ticking countdown driven
+ * by `claim.holdExpiresAt` — claims hold for a real 15 minutes
+ * (`claim.service.ts`: `HOLD_DURATION_MS`), not a static mock value.
+ * When a card's countdown reaches 0, its button disables locally AND
+ * the list is silently refetched once — a background job on the
+ * backend (`expireListings.job.ts`) is what actually flips an expired
+ * hold's state server-side, so this just re-syncs the UI to that
+ * rather than trusting the client-side countdown as ground truth.
+ *
+ * Analytics: `confirm_pickup_viewed` fires once per successful load
+ * (same fire-in-the-load-function placement as `dashboard_viewed`),
+ * with the pending count shown on screen. Confirming a pickup fires
+ * `picked_up_confirmed` — the SAME event name the Dashboard's "Mark
+ * Picked Up" button fires, since both trigger the literal same
+ * backend action (`PATCH /listings/:id/confirm-pickup`); the
+ * `source: 'confirm_pickup_page'` property (vs. `'dashboard'` there)
+ * is what tells the two entry points apart. The previous placeholder
+ * `claim_id` property has been dropped entirely — a claim is embedded
+ * directly on the listing document here, not a separate record with
+ * its own id, so there was never a real value to put there.
+ * `listing_id` identifies the event on its own. Neither event is part
+ * of the original Event Tracking Plan — same extension caveat already
+ * noted on the Dashboard, Admin, and Landing pages' analytics.
  */
-const MOCK_PENDING = [
-  { id: 'mock-1', listingId: 'mock-listing-1', claimedBy: 'Individual', claimedAtLabel: '3:40 pm', expiresInSeconds: 552 }, // 09:12
-  { id: 'mock-2', listingId: 'mock-listing-2', claimedBy: 'Individual', claimedAtLabel: '3:40 pm', expiresInSeconds: 552 },
-];
+function formatTime(dateStr) {
+  return new Date(dateStr).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function secondsUntil(dateStr) {
+  return Math.max(0, Math.round((new Date(dateStr).getTime() - Date.now()) / 1000));
+}
 
 function formatCountdown(totalSeconds) {
   const clamped = Math.max(0, totalSeconds);
@@ -50,13 +77,23 @@ function formatCountdown(totalSeconds) {
   return `${mm}:${ss}`;
 }
 
-function PendingCard({ item, onConfirm }) {
-  const [secondsLeft, setSecondsLeft] = useState(item.expiresInSeconds);
+const CLAIMANT_LABEL = { individual: 'Individual', charity: 'Charity' };
+
+function PendingCard({ listing, confirming, onConfirm, onExpire }) {
+  const [secondsLeft, setSecondsLeft] = useState(() => secondsUntil(listing.claim.holdExpiresAt));
+  const hasExpiredRef = useRef(false);
 
   useEffect(() => {
-    if (secondsLeft <= 0) return undefined;
-    const interval = setInterval(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000);
+    if (secondsLeft <= 0) {
+      if (!hasExpiredRef.current) {
+        hasExpiredRef.current = true;
+        onExpire();
+      }
+      return undefined;
+    }
+    const interval = setInterval(() => setSecondsLeft(secondsUntil(listing.claim.holdExpiresAt)), 1000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsLeft]);
 
   return (
@@ -65,11 +102,13 @@ function PendingCard({ item, onConfirm }) {
       <div className="bg-secondary-light px-4 py-3">
         <div className="flex items-center justify-between border-b border-border py-2.5">
           <span className="text-body2 font-bold text-ink">Claimed by</span>
-          <span className="text-body2 text-ink-muted">{item.claimedBy}</span>
+          <span className="text-body2 text-ink-muted">
+            {CLAIMANT_LABEL[listing.claim.claimantType] || listing.claim.claimantType}
+          </span>
         </div>
         <div className="flex items-center justify-between border-b border-border py-2.5">
           <span className="text-body2 font-bold text-ink">Claimed at</span>
-          <span className="text-body2 text-ink-muted">{item.claimedAtLabel}</span>
+          <span className="text-body2 text-ink-muted">{formatTime(listing.claim.claimedAt)}</span>
         </div>
         <div className="flex items-center justify-between py-2.5">
           <span className="text-body2 font-bold text-ink">Hold expires in</span>
@@ -77,7 +116,14 @@ function PendingCard({ item, onConfirm }) {
         </div>
       </div>
       <div className="bg-primary-light p-4">
-        <Button color="accent" variant="solid" fullWidth onClick={() => onConfirm(item)} disabled={secondsLeft <= 0}>
+        <Button
+          color="accent"
+          variant="solid"
+          fullWidth
+          loading={confirming}
+          disabled={secondsLeft <= 0 || confirming}
+          onClick={() => onConfirm(listing)}
+        >
           Confirm Pickup
         </Button>
       </div>
@@ -86,34 +132,92 @@ function PendingCard({ item, onConfirm }) {
 }
 
 export default function ConfirmPickupPage() {
-  const [pending, setPending] = useState(MOCK_PENDING);
+  const { showToast } = useToast();
   const account = getAccount();
+  const [phase, setPhase] = useState('loading'); // loading | error | success
+  const [businessName, setBusinessName] = useState('');
+  const [pending, setPending] = useState([]);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [confirmingId, setConfirmingId] = useState(null);
 
-  function handleConfirm(item) {
-    trackEvent('picked_up_confirmed', {
-      vendor_id: account?.id,
-      listing_id: item.listingId,
-      claim_id: item.id, // mock placeholder — see file-level note
-    });
-    setPending((prev) => prev.filter((p) => p.id !== item.id));
+  const load = useCallback(async () => {
+    setPhase('loading');
+    setErrorMessage('');
+    try {
+      const [vendorData, listingsData] = await Promise.all([getVendorMe(), getVendorListings()]);
+      const stillPending = listingsData.listings.filter((l) => l.state === 'claimed' && l.claim);
+      setBusinessName(vendorData.vendor.businessName);
+      setPending(stillPending);
+      setPhase('success');
+      trackEvent('confirm_pickup_viewed', { vendor_id: account?.id, pending_count: stillPending.length });
+    } catch (err) {
+      setErrorMessage(err instanceof ApiError ? err.msg : err.message);
+      setPhase('error');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function handleConfirm(listing) {
+    setConfirmingId(listing._id);
+    try {
+      await confirmPickup(listing._id);
+      trackEvent('picked_up_confirmed', { vendor_id: account?.id, listing_id: listing._id, source: 'confirm_pickup_page' });
+      setPending((prev) => prev.filter((l) => l._id !== listing._id));
+      showToast({ tone: 'success', message: `${listing.itemDescription} confirmed as picked up.` });
+    } catch (err) {
+      showToast({
+        tone: 'error',
+        message: err instanceof ApiError ? err.msg : 'Could not confirm pickup. Please try again.',
+      });
+    } finally {
+      setConfirmingId(null);
+    }
   }
 
   return (
     <DashboardLayout renderSidebar={(onClose) => <AppNav onCloseMobile={onClose} />}>
       <div className="mx-auto max-w-4xl">
-        <h1 className="text-h4 font-bold text-ink">Confirm Pickup</h1>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-h4 font-bold text-ink">Confirm Pickup</h1>
+          {phase === 'success' && businessName && (
+            <span className="flex items-center gap-2 text-body1 font-semibold text-ink">
+              <span className="h-2.5 w-2.5 rounded-full bg-accent-green" aria-hidden="true" />
+              {businessName}
+            </span>
+          )}
+        </div>
 
         <div className="mt-4">
-          {pending.length === 0 ? (
+          {phase === 'loading' && (
+            <Loading title="Loading pending pickups…" description="Fetching claimed listings awaiting confirmation" />
+          )}
+
+          {phase === 'error' && (
+            <ErrorState title="Connection Interrupted" description={errorMessage} actionLabel="Try Again" onAction={load} />
+          )}
+
+          {phase === 'success' && pending.length === 0 && (
             <EmptyState
               icon={<ForkKnifeIcon />}
               title="Nothing Awaiting Pickup"
               description="Claimed listings that are waiting for pickup confirmation will show up here."
             />
-          ) : (
+          )}
+
+          {phase === 'success' && pending.length > 0 && (
             <div className="grid grid-cols-1 gap-6 tablet:grid-cols-2">
-              {pending.map((item) => (
-                <PendingCard key={item.id} item={item} onConfirm={handleConfirm} />
+              {pending.map((listing) => (
+                <PendingCard
+                  key={listing._id}
+                  listing={listing}
+                  confirming={confirmingId === listing._id}
+                  onConfirm={handleConfirm}
+                  onExpire={load}
+                />
               ))}
             </div>
           )}

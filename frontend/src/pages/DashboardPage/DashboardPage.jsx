@@ -8,6 +8,8 @@ import Button from '../../components/Button/Button.jsx';
 import { ForkKnifeIcon } from '../../components/Icon/Icon.jsx';
 import { getVendorMe, getVendorDashboard, getVendorListings } from '../../api/vendors.js';
 import { confirmPickup } from '../../api/listings.js';
+import { getAccount } from '../../lib/authStorage.js';
+import { trackEvent } from '../../lib/analytics.js';
 import { ApiError } from '../../lib/apiClient.js';
 import { useToast } from '../../components/Toast/ToastProvider.jsx';
 
@@ -54,6 +56,20 @@ import { useToast } from '../../components/Toast/ToastProvider.jsx';
  * `Toast`/`ToastProvider` — built earlier in this project but not
  * wired into the app anywhere yet, so `<ToastProvider>` now wraps
  * `App` (see App.jsx) as the one necessary supporting change.
+ *
+ * Analytics: `dashboard_viewed` fires on successful load (same
+ * fire-in-the-load-function placement as `profile_viewed` in
+ * ProfilePage), with the same stats shown on screen. Marking a
+ * listing picked up here fires `picked_up_confirmed` — the same event
+ * name ConfirmPickupPage's "Confirm Pickup" button fires, since both
+ * trigger the literal same backend action
+ * (`PATCH /listings/:id/confirm-pickup`); a `source` property
+ * ('dashboard' vs. 'confirm_pickup_page') distinguishes which surface
+ * it was triggered from without inventing a second event for one
+ * action. Neither event is part of the original Event Tracking Plan
+ * (it doesn't cover the vendor Dashboard's stats or this entry point
+ * to confirm-pickup) — same extension caveat already noted on the
+ * admin pages' analytics.
  */
 const STATUS_META = {
   active: { label: 'Active', className: 'bg-accent-green-light text-accent-green-dark' },
@@ -92,6 +108,7 @@ function StatCard({ value, label, tone }) {
 
 export default function DashboardPage() {
   const { showToast } = useToast();
+  const account = getAccount();
   const [phase, setPhase] = useState('loading'); // loading | error | success
   const [businessName, setBusinessName] = useState('');
   const [stats, setStats] = useState({ claimed: 0, discarded: 0 });
@@ -99,24 +116,35 @@ export default function DashboardPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [confirmingId, setConfirmingId] = useState(null);
 
-  const load = useCallback(async () => {
-    setPhase('loading');
-    setErrorMessage('');
-    try {
-      const [vendorData, dashboardData, listingsData] = await Promise.all([
-        getVendorMe(),
-        getVendorDashboard(),
-        getVendorListings(),
-      ]);
-      setBusinessName(vendorData.vendor.businessName);
-      setStats({ claimed: dashboardData.claimed, discarded: dashboardData.discarded });
-      setListings(listingsData.listings);
-      setPhase('success');
-    } catch (err) {
-      setErrorMessage(err instanceof ApiError ? err.msg : err.message);
-      setPhase('error');
-    }
-  }, []);
+ const load = useCallback(async () => {
+  try {
+    const [vendorData, dashboardData, listingsData] = await Promise.all([
+      getVendorMe(),
+      getVendorDashboard(),
+      getVendorListings(),
+    ]);
+
+    setBusinessName(vendorData.vendor.businessName);
+    setStats({
+      claimed: dashboardData.claimed,
+      discarded: dashboardData.discarded,
+    });
+    setListings(listingsData.listings);
+    setPhase('success');
+
+    trackEvent('dashboard_viewed', {
+      vendor_id: account?.id,
+      items_claimed: dashboardData.claimed,
+      items_discarded: dashboardData.discarded,
+      active_now: listingsData.listings.filter(
+        (l) => l.state === 'active'
+      ).length,
+    });
+  } catch (err) {
+    setErrorMessage(err instanceof ApiError ? err.msg : err.message);
+    setPhase('error');
+  }
+}, [account?.id]);
 
   useEffect(() => {
     load();
@@ -127,6 +155,7 @@ export default function DashboardPage() {
     try {
       await confirmPickup(listing._id);
       setListings((prev) => prev.map((l) => (l._id === listing._id ? { ...l, state: 'picked_up' } : l)));
+      trackEvent('picked_up_confirmed', { vendor_id: account?.id, listing_id: listing._id, source: 'dashboard' });
       showToast({ tone: 'success', message: `${listing.itemDescription} marked as picked up.` });
     } catch (err) {
       showToast({

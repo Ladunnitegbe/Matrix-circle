@@ -1,14 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout/DashboardLayout.jsx';
 import AppNav from '../../components/AppNav/AppNav.jsx';
+import Card from '../../components/Card/Card.jsx';
 import Input from '../../components/Input/Input.jsx';
 import Select from '../../components/Select/Select.jsx';
-import LocationField from '../../components/LocationField/LocationField.jsx';
 import Button from '../../components/Button/Button.jsx';
 import Alert from '../../components/Alert/Alert.jsx';
-import { ClockIcon } from '../../components/Icon/Icon.jsx';
+import Loading from '../../components/Loading/Loading.jsx';
+import ErrorState from '../../components/ErrorState/ErrorState.jsx';
+import { ClockIcon, BoxIcon } from '../../components/Icon/Icon.jsx';
 import { createListing } from '../../api/listings.js';
+import { getVendorMe } from '../../api/vendors.js';
 import { getAccount } from '../../lib/authStorage.js';
 import { ApiError } from '../../lib/apiClient.js';
 import { trackEvent } from '../../lib/analytics.js';
@@ -21,33 +24,94 @@ const CATEGORY_OPTIONS = [
 ];
 
 /**
- * Create List — matches `create_list_-_vendor*.png`: sidebar with
- * Dashboard / New Listing (active) / Confirm Pickup, "Share Surplus
- * Food" pinned at the bottom.
+ * Create List — matches `create_list_-_vendor(-desktop).png` (the
+ * form) and `listing_live.png` (the post-submit success state).
  *
- * Firebase/GA: fires `listing_created` from the tracking plan
- * immediately after a successful `POST /listings`, with exactly the
- * properties the plan specifies (vendor_id, listing_id, category,
- * is_free, quantity, pickup_by, location) — `vendor_id` comes from
- * the stored account, everything else from the response/payload.
- * Fired only on real success, never speculatively.
+ * TWO GAPS FIXED, neither previously matching the Figma:
+ *
+ * 1. Missing business-name header. Every other vendor page
+ *    (Dashboard, Confirm Pickup, Profile) shows "• Jane's Kitchen" up
+ *    top; this page didn't, even though the Figma shows it here too.
+ *    Now fetched via the same `getVendorMe()` already used elsewhere.
+ *
+ * 2. Location field. The Figma shows a static "Location: Auto-filled"
+ *    row — not the interactive click-to-geolocate `LocationField`
+ *    component this page used before (that component's UX — "tap to
+ *    use current location" — belongs to Registration's vendor step,
+ *    where there's no location on file yet; here, a vendor posting a
+ *    listing already has one from registration, so re-prompting for
+ *    GPS every time was never right). This page now auto-fills
+ *    `location` from the vendor's own `GET /vendors/me` record on
+ *    load, with no click required, matching the Figma's "auto-filled"
+ *    framing exactly — and, same as ProfilePage's read-only Location
+ *    field, shown as real formatted coordinates rather than the
+ *    Figma's literal placeholder-looking text, since the real value
+ *    is on hand and hiding it behind static copy would be worse than
+ *    showing what's actually available.
+ *
+ * SUCCESS STATE — the previous version silently navigated to
+ * `/discover` (the RECIPIENT feed — not even the right destination
+ * for a vendor) immediately after `POST /listings` succeeded, with no
+ * confirmation shown at all. Now shows the `listing_live.png` success
+ * card first, and "View My Active Listings" goes to
+ * `/vendor/dashboard` (the page that actually shows a vendor's own
+ * listings) instead. `BoxIcon` stands in for the Figma's basket icon
+ * — nothing in the existing icon set is a literal basket, and this is
+ * the closest available shape rather than hand-drawing new SVG art.
+ *
+ * Analytics: `create_listing_viewed` fires once on load — new, filling
+ * the same page-view gap already closed on the other vendor/admin
+ * pages. `listing_created` is unchanged from before (it already fired
+ * with the exact properties the Event Tracking Plan specifies, on
+ * real success only) — still fires here, just before the success
+ * screen shows instead of an immediate redirect.
  */
 export default function CreateListPage() {
   const navigate = useNavigate();
   const account = getAccount();
+
+  const [phase, setPhase] = useState('loading'); // loading | error | form | live
+  const [businessName, setBusinessName] = useState('');
+  const [location, setLocation] = useState(null);
+  const [loadError, setLoadError] = useState('');
 
   const [itemDescription, setItemDescription] = useState('');
   const [quantity, setQuantity] = useState('');
   const [price, setPrice] = useState('');
   const [category, setCategory] = useState('cooked_meal');
   const [pickupTime, setPickupTime] = useState('');
-  const [location, setLocation] = useState(null);
+  const [createdListing, setCreatedListing] = useState(null);
 
   const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const canSubmit = itemDescription.trim().length > 0 && quantity.trim().length > 0 && pickupTime.trim().length > 0 && location !== null;
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setPhase('loading');
+      try {
+        const data = await getVendorMe();
+        if (cancelled) return;
+        setBusinessName(data.vendor.businessName);
+        setLocation({ lat: data.vendor.location.coordinates[1], lng: data.vendor.location.coordinates[0] });
+        setPhase('form');
+        trackEvent('create_listing_viewed', { vendor_id: account?.id });
+      } catch (err) {
+        if (!cancelled) {
+          setLoadError(err instanceof ApiError ? err.msg : 'Something went wrong. Please try again.');
+          setPhase('error');
+        }
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function buildPickupByTimeIso() {
     const [hours, minutes] = pickupTime.split(':').map(Number);
@@ -62,7 +126,7 @@ export default function CreateListPage() {
     const quantityNum = Number(quantity);
     if (!quantity.trim() || Number.isNaN(quantityNum) || quantityNum < 1) next.quantity = 'Enter a quantity of at least 1.';
     if (!pickupTime) next.pickupTime = 'Set a pickup-by time.';
-    if (!location) next.location = 'Set your location to continue.';
+    if (!location) next.location = 'Location could not be determined — please refresh and try again.';
     setFieldErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -98,7 +162,8 @@ export default function CreateListPage() {
         location: { lat: location.lat, lng: location.lng },
       });
 
-      navigate('/discover');
+      setCreatedListing(data.listing);
+      setPhase('live');
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.errors?.length) {
@@ -119,10 +184,73 @@ export default function CreateListPage() {
     }
   }
 
+  if (phase === 'loading') {
+    return (
+      <DashboardLayout renderSidebar={(onClose) => <AppNav onCloseMobile={onClose} />}>
+        <div className="mx-auto max-w-lg">
+          <Loading title="Loading…" description="Fetching your vendor details" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (phase === 'error') {
+    return (
+      <DashboardLayout renderSidebar={(onClose) => <AppNav onCloseMobile={onClose} />}>
+        <div className="mx-auto max-w-lg">
+          <ErrorState title="Connection Interrupted" description={loadError} actionLabel="Try Again" onAction={() => window.location.reload()} />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (phase === 'live') {
+    return (
+      <DashboardLayout renderSidebar={(onClose) => <AppNav onCloseMobile={onClose} />}>
+        <div className="mx-auto max-w-lg">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h1 className="text-h4 font-bold text-ink">New Listing</h1>
+            <span className="flex items-center gap-2 text-body1 font-semibold text-ink">
+              <span className="h-2.5 w-2.5 rounded-full bg-accent-green" aria-hidden="true" />
+              {businessName}
+            </span>
+          </div>
+
+          <Card padding="md" className="mt-4 text-center">
+            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-accent-green-light">
+              <BoxIcon width={28} height={28} />
+            </span>
+            <p className="mt-4 text-body1 font-bold text-ink">Listing is Live!</p>
+            <p className="mt-1 text-body2 text-ink-muted">
+              Your surplus food is now visible to nearby students and community members.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/vendor/dashboard')}
+              className="mt-4 text-body2 font-bold text-accent-green hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange"
+            >
+              View My Active Listings
+            </button>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout renderSidebar={(onClose) => <AppNav onCloseMobile={onClose} />}>
       <div className="mx-auto max-w-lg">
-        <h1 className="text-h4 font-bold text-ink">Share Surplus Food</h1>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-h4 font-bold text-ink">New Listing</h1>
+          <span className="flex items-center gap-2 text-body1 font-semibold text-ink">
+            <span className="h-2.5 w-2.5 rounded-full bg-accent-green" aria-hidden="true" />
+            {businessName}
+          </span>
+        </div>
+
+        <hr className="mt-4 border-border" />
+
+        <p className="mt-4 text-sh2 font-bold text-ink">Share Surplus Food</p>
         <p className="mt-1 text-body2 text-ink-muted">
           Add details about the available portions so nearby residents can claim them.
         </p>
@@ -145,7 +273,13 @@ export default function CreateListPage() {
             error={Boolean(fieldErrors.pickupTime)} caption1={fieldErrors.pickupTime}
             trailingAction={<ClockIcon width={18} height={18} className="text-ink-faint" />} required />
 
-          <LocationField value={location} onLocate={setLocation} error={Boolean(fieldErrors.location)} caption1={fieldErrors.location} required />
+          <Input
+            label="Location"
+            readOnly
+            value={location ? `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : ''}
+            error={Boolean(fieldErrors.location)}
+            caption1={fieldErrors.location}
+          />
 
           <Button type="submit" color="accent" variant="solid" fullWidth loading={submitting} disabled={!canSubmit}>
             Post to Community
