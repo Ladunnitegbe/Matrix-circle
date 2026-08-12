@@ -13,6 +13,8 @@ import claimRoutes from "./modules/claim/claim.route";
 import adminRoutes from "./modules/admin/admin.route";
 
 const app = express();
+app.set("trust proxy", 1);
+
 
 const allowedOrigins = [
   "http://localhost:5173",

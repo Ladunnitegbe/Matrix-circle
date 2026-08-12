@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "seed:admin": "tsx src/scripts/seedAdmin.ts"
-},
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/circorangeintern/Matrix-circle.git"
@@ -22,6 +22,7 @@
   },
   "homepage": "https://github.com/circorangeintern/Matrix-circle#readme",
   "dependencies": {
+    "@types/nodemailer": "^8.0.1",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -33,7 +34,7 @@
     "mongoose": "^9.7.4",
     "morgan": "^1.11.0",
     "node-cron": "^4.6.0",
-    "nodemailer": "^9.0.3",
+    "nodemailer": "^9.0.5",
     "xss": "^1.0.15",
     "zod": "^4.4.3"
   },
@@ -45,7 +46,6 @@
     "@types/morgan": "^1.9.10",
     "@types/node": "^26.1.1",
     "@types/node-cron": "^3.0.11",
-    "@types/nodemailer": "^8.0.1",
     "tsx": "^4.23.0",
     "typescript": "^7.0.2"
   }
