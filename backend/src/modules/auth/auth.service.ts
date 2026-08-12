@@ -7,7 +7,10 @@ import { createAccessToken } from "../../common/utils/jwt";
 import { createUserProfile } from "../user/user.service";
 import { createVendorProfile } from "../vendor/vendor.service";
 import { sendEmail } from "../notification/notification.service";
-import { charityPendingTemplate } from "../notification/email-templates";
+import {
+  charityPendingTemplate,
+  adminNewCharityTemplate,
+} from "../notification/email-templates";
 
 type RegisterData = {
   name: string;
@@ -99,6 +102,17 @@ const register = async (data: RegisterData) => {
       void sendEmail(data.email, subject, html).catch((err) => {
         console.error("Failed to send charity email:", err);
       });
+
+      const adminEmail = process.env.ADMIN_EMAIL;
+      if (adminEmail) {
+        const admin = adminNewCharityTemplate(
+          data.name,
+          data.charityRegNumber!,
+        );
+        void sendEmail(adminEmail, admin.subject, admin.html).catch((err) =>
+          console.error("Failed to notify admin:", err),
+        );
+      }
     }
 
     const token = createAccessToken({

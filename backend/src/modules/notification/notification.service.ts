@@ -10,16 +10,28 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+transporter.verify((error, success) => {
+  if (error) {
+    console.error("SMTP connection failed:", error);
+  } else {
+    console.log("SMTP server is ready to send emails");
+  }
+});
+
 const sendEmail = async (to: string, subject: string, html: string) => {
   try {
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: process.env.SMTP_FROM,
       to,
       subject,
       html,
     });
+
+    console.log("Email sent successfully:", info.messageId);
+    return info;
   } catch (err) {
     console.error(`Failed to send email to ${to}:`, err);
+    throw err;
   }
 };
 
