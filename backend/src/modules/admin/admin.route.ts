@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { approveCharity } from "./admin.controller";
+import { approveCharity, getPendingCharities } from "./admin.controller";
 import { authenticateUser, authorizePermissions } from "../../common/middleware/isAuth";
 
 const router = Router();
@@ -10,5 +10,8 @@ router.patch(
   authorizePermissions("admin"),
   approveCharity,
 );
+
+
+router.get("/charities/pending", authenticateUser, authorizePermissions("admin"), getPendingCharities);
 
 export default router

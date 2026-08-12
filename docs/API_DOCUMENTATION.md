@@ -275,6 +275,39 @@ GET /api/vendors/dashboard
 
 Requires vendor authentication.
 
+### Get vendor listings
+
+```http
+GET /api/vendors/listings
+```
+
+Requires vendor authentication.
+
+Returns all listings created by the authenticated vendor, sorted from newest to oldest. Each listing may include populated claim information for `claim.claimedBy` with the claimant's `name` and `accountType`.
+
+#### Example success response
+
+```json
+{
+  "success": true,
+  "listings": [
+    {
+      "_id": "...",
+      "itemDescription": "Fresh bread",
+      "quantity": 10,
+      "category": "baked_goods",
+      "pickupByTime": "2026-07-27T18:00:00.000Z",
+      "coordinates": [3.3792, 6.5244],
+      "state": "available",
+      "claim": {
+        "status": null,
+        "claimedBy": null
+      }
+    }
+  ]
+}
+```
+
 ---
 
 ## Listing routes
@@ -366,7 +399,29 @@ Used by vendors to confirm that a claimed listing was picked up.
 PATCH /api/admin/charities/:userId/verify
 ```
 
-Requires admin privileges.
+This endpoint is used by admin users to approve verification for charity accounts.
+
+Requirements:
+
+- Authentication with a valid JWT token
+- The authenticated user must have the `admin` role
+- `userId` must be the ID of a charity account pending verification
+
+#### Example success response
+
+```json
+{
+  "success": true,
+  "msg": "Charity verified",
+  "user": {
+    "_id": "...",
+    "email": "charity@example.com",
+    "role": "charity",
+    "isVerified": true,
+    "name": "Charity Name"
+  }
+}
+```
 
 ---
 

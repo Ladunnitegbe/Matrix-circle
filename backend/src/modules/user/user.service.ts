@@ -81,4 +81,8 @@ const findUsersNearLocation = async (coordinates: [number, number], maxDistanceK
     .filter((u): u is { name: string; email: string } => Boolean(u.email));
 };
 
-export { createUserProfile, getProfileByAccountId, verifyCharity, updateLocation, findUsersNearLocation  };
+const getPendingCharities = async () => {
+  return User.find({ accountType: "charity", charityVerifiedAt: null }).sort({ createdAt: -1 });
+};
+
+export { createUserProfile, getProfileByAccountId, verifyCharity, updateLocation, findUsersNearLocation, getPendingCharities  };

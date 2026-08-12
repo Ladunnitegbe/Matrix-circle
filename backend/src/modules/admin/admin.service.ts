@@ -1,7 +1,11 @@
-import { verifyCharity } from "../user/user.service";
+import { verifyCharity, getPendingCharities } from "../user/user.service";
 
 const approveCharityVerification = async (userId: string) => {
   return verifyCharity(userId);
 };
 
-export { approveCharityVerification };
+const listPendingCharities = async () => {
+  return getPendingCharities();
+};
+
+export { approveCharityVerification, listPendingCharities };

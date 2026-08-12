@@ -23,3 +23,8 @@ export const newListingNearbyTemplate = (name: string, itemDescription: string) 
     <p>Open the app to view it and claim before it's gone.</p>
   `,
 });
+
+export const adminNewCharityTemplate = (charityName: string, charityRegNumber: string) => ({
+  subject: "FoodShare Admin — New Charity Pending Verification",
+  html: `<p>A new charity registered and needs verification:</p><p><strong>${charityName}</strong> (Reg #: ${charityRegNumber})</p>`,
+});

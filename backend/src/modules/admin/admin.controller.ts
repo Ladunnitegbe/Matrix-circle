@@ -7,4 +7,9 @@ const approveCharity = asyncWrapper(async (req: Request, res: Response) => {
   res.status(200).json({ success: true, msg: "Charity verified", user });
 });
 
-export { approveCharity };
+const getPendingCharities = asyncWrapper(async (req: Request, res: Response) => {
+  const charities = await adminService.listPendingCharities();
+  res.status(200).json({ success: true, charities });
+});
+
+export { approveCharity, getPendingCharities };
