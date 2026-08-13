@@ -92,7 +92,7 @@ export default function DiscoverFoodPage() {
   const [errorMessage, setErrorMessage] = useState('');
 
   const account = getAccount();
-  const userCoordsRef = useRef(null);
+  const [userCoords, setUserCoords] = useState(null);
   const viewTrackingRef = useRef(new Map()); // listingId -> { observer, timer, fired }
 
   const loadListings = useCallback(async (activeCategory) => {
@@ -100,7 +100,7 @@ export default function DiscoverFoodPage() {
     setErrorMessage('');
     try {
       const coords = await getCurrentPosition();
-      userCoordsRef.current = coords;
+      setUserCoords(coords);
       const data = await getListings({ lat: coords.lat, lng: coords.lng, category: activeCategory || undefined });
       setListings(data.listings);
       setPhase(data.listings.length === 0 ? 'empty' : 'success');
@@ -111,9 +111,22 @@ export default function DiscoverFoodPage() {
   }, []);
 
   useEffect(() => {
-    loadListings(category);
-    const interval = setInterval(() => loadListings(category), POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+    let isMounted = true;
+    const load = async () => {
+      if (isMounted) {
+        await loadListings(category);
+      }
+    };
+    load();
+    const interval = setInterval(() => {
+      if (isMounted) {
+        loadListings(category);
+      }
+    }, POLL_INTERVAL_MS);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [category, loadListings]);
 
   // Clean up any in-flight observers/timers on unmount or when the
@@ -135,9 +148,9 @@ export default function DiscoverFoodPage() {
   }
 
   function listingDistanceMeters(listing) {
-    if (!userCoordsRef.current) return null;
+    if (!userCoords) return null;
     const listingCoords = { lat: listing.location.coordinates[1], lng: listing.location.coordinates[0] };
-    return distanceMeters(userCoordsRef.current, listingCoords);
+    return distanceMeters(userCoords, listingCoords);
   }
 
   function handleListingClick(listing, index) {
