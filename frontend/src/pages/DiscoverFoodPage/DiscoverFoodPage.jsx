@@ -41,6 +41,25 @@ import { trackEvent } from '../../lib/analytics.js';
  * the `listing_viewed` analytics event below; it just wasn't being
  * shown on the card. Now it's the same real number in both places.
  *
+ * RADIUS FIX: `getListings` was being called without `maxDistanceKm`.
+ * `API_DOCUMENTATION.md` says `GET /listings` "defaults to 5" when the
+ * param is omitted, so this was *functionally* returning a 5km feed
+ * either way — but silently, via an implicit backend default this page
+ * never stated or controlled. Now `MAX_DISTANCE_KM = 5` is passed on
+ * every fetch (initial + each poll) explicitly, so this page's own
+ * "within 5km" promise (see the loading copy below) is actually backed
+ * by the request it sends, not a guess about server behavior.
+ *
+ * COORDINATE SHAPE: `API_DOCUMENTATION.md`'s only concrete listing
+ * example (`GET /vendors/listings`) shows a flat `coordinates` field,
+ * not one nested under `location`, but this page's distance math
+ * assumed `listing.location.coordinates`. `getListingCoordinates` now
+ * reads either shape defensively and warns in dev if neither is
+ * present, rather than silently rendering no distance pill and a
+ * `distance_m: null` analytics property. Worth confirming with backend
+ * which shape `GET /listings` actually serializes, since the docs
+ * don't show a response example for that specific endpoint.
+ *
  * Firebase/GA tracking (from the Event Tracking Plan):
  *   - `filter_applied` fires the instant a category chip is tapped.
  *   - `listing_viewed` fires once per listing, only after it has been
@@ -75,6 +94,14 @@ const CATEGORIES = [
 const POLL_INTERVAL_MS = 45000;
 const VIEW_TRACK_DELAY_MS = 5000;
 
+// `GET /listings` accepts an optional `maxDistanceKm` (API_DOCUMENTATION.md
+// says it "defaults to 5" server-side if omitted). Passing it explicitly
+// instead of relying on that silent default means: (a) this page's "5km"
+// promise — in its own loading copy below — stays true even if the backend
+// default ever changes, and (b) it's now trivial to make this a user
+// setting later without hunting for an implicit value.
+const MAX_DISTANCE_KM = 5;
+
 function minutesUntil(pickupByTime) {
   const diffMs = new Date(pickupByTime).getTime() - Date.now();
   return Math.max(0, Math.round(diffMs / 60000));
@@ -101,7 +128,12 @@ export default function DiscoverFoodPage() {
     try {
       const coords = await getCurrentPosition();
       setUserCoords(coords);
-      const data = await getListings({ lat: coords.lat, lng: coords.lng, category: activeCategory || undefined });
+      const data = await getListings({
+        lat: coords.lat,
+        lng: coords.lng,
+        category: activeCategory || undefined,
+        maxDistanceKm: MAX_DISTANCE_KM,
+      });
       setListings(data.listings);
       setPhase(data.listings.length === 0 ? 'empty' : 'success');
     } catch (err) {
@@ -147,9 +179,32 @@ export default function DiscoverFoodPage() {
     trackEvent('filter_applied', { user_id: account?.id, category: value || 'all' });
   }
 
+  // API_DOCUMENTATION.md confirms listing coordinates are stored/sent as
+  // GeoJSON-order [longitude, latitude] (README backs this up: "GeoJSON is
+  // used for location-based searching" + 2dsphere indexes). What's NOT
+  // confirmed by the docs is which field they live on for `GET /listings`
+  // specifically — the only concrete example shown (`GET
+  // /vendors/listings`) has a flat `coordinates` field on the listing, not
+  // one nested under `location`. Rather than hard-fail if the discovery
+  // feed serializes it either way, read both and flag in dev if neither
+  // is present so this doesn't silently render "no distance" for every
+  // card.
+  function getListingCoordinates(listing) {
+    const raw = listing?.location?.coordinates ?? listing?.coordinates;
+    if (!Array.isArray(raw) || raw.length !== 2) {
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.warn('[DiscoverFoodPage] listing missing coordinates in expected shape:', listing?._id);
+      }
+      return null;
+    }
+    return { lng: raw[0], lat: raw[1] };
+  }
+
   function listingDistanceMeters(listing) {
     if (!userCoords) return null;
-    const listingCoords = { lat: listing.location.coordinates[1], lng: listing.location.coordinates[0] };
+    const listingCoords = getListingCoordinates(listing);
+    if (!listingCoords) return null;
     return distanceMeters(userCoords, listingCoords);
   }
 
@@ -210,7 +265,7 @@ export default function DiscoverFoodPage() {
 
         <div className="mt-4">
           {phase === 'loading' && (
-            <Loading title="Finding available food nearby…" description="Scanning within 5km of your location" />
+            <Loading title="Finding available food nearby…" description={`Scanning within ${MAX_DISTANCE_KM}km of your location`} />
           )}
 
           {phase === 'error' && (
