@@ -34,6 +34,7 @@ const createListing = async (accountId: string, input: CreateListingInput) => {
     vendorId: vendor.id,
     itemDescription: input.itemDescription,
     quantity: input.quantity,
+    remainingQuantity: input.quantity,
     price: input.price,
     category: input.category,
     pickupByTime: input.pickupByTime,

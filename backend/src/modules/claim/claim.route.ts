@@ -3,7 +3,7 @@ import { claim, confirmPickup } from "./claim.controller";
 import { authenticateUser, authorizePermissions } from "../../common/middleware/isAuth";
 import { claimLimiter } from "../../common/middleware/rateLimiter.middleware";
 import validateRequest from "../../common/middleware/validation-request";
-import { listingIdParamsSchema } from "./claim.validation";
+import { confirmPickupBodySchema, listingIdParamsSchema } from "./claim.validation";
 
 
 const router = Router();
@@ -21,7 +21,7 @@ router.patch(
   "/:id/confirm-pickup",
   authenticateUser,
   authorizePermissions("vendor"),
-  validateRequest({ params: listingIdParamsSchema }),
+  validateRequest({ params: listingIdParamsSchema, body: confirmPickupBodySchema }),
   confirmPickup
 );
 

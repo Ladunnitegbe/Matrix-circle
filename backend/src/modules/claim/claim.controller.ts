@@ -4,11 +4,15 @@ import * as claimService from "./claim.service";
 
 const claim = asyncWrapper(async (req: Request, res: Response) => {
   const listing = await claimService.claimListing(req.user!.id, req.params.id as string);
-  res.status(200).json({ success: true, msg: "Listing claimed successfully", listing });
+  res.status(200).json({ success: true, msg: "Portion claimed successfully", listing });
 });
 
 const confirmPickup = asyncWrapper(async (req: Request, res: Response) => {
-  const listing = await claimService.confirmPickup(req.user!.id, req.params.id as string);
+  const listing = await claimService.confirmPickup(
+    req.user!.id,
+    req.params.id as string,
+    req.body.claimantUserId
+  );
   res.status(200).json({ success: true, msg: "Pickup confirmed", listing });
 });
 
