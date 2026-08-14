@@ -31,20 +31,24 @@ const CORE_VALUES = [
 /**
  * Analytics on this page (previously had none): `landing_viewed` fires
  * once on mount for both guests and signed-in visitors. The rest are
- * click events on the real conversion paths only — in-page anchor
- * nav, footer "Quick Links" duplicates, and the not-yet-built Policy
- * links are deliberately left untracked, consistent with how other
- * pages only track meaningful funnel actions rather than every click.
+ * click events on the real conversion paths only — in-page anchor nav
+ * and the footer's About Us / Charity Verification / Contact Support /
+ * Policy links are deliberately left untracked, consistent with how
+ * other pages only track meaningful funnel actions rather than every
+ * click.
  *
  * `find_food_clicked` / `share_food_clicked` are each shared by two
  * buttons (hero + final CTA) that lead to the same destination and
  * intent — a `location` property ('hero' | 'final_cta') distinguishes
  * placement instead of doubling the event count. `login_clicked` /
- * `register_clicked` cover the Navbar, footer, and (for login) the
- * "Already have an account?" link the same way, via `location`
- * ('navbar' | 'footer' | 'final_cta'). The authenticated Navbar CTA
- * (Dashboard / Discover Food) gets its own `landing_authed_cta_clicked`
- * since it's a distinct, already-signed-in action.
+ * `register_clicked` cover the Navbar and (for login) the "Already
+ * have an account?" link the same way, via `location` ('navbar' |
+ * 'final_cta') — the footer's old Login/Register links are gone in
+ * the current design (replaced by About Us / Charity Verification /
+ * Contact Support), so `trackLogin('footer')` / `trackRegister('footer')`
+ * no longer apply. The authenticated Navbar CTA (Dashboard / Discover
+ * Food) gets its own `landing_authed_cta_clicked` since it's a
+ * distinct, already-signed-in action.
  *
  * None of this is part of the original Event Tracking Plan — same
  * extension caveat already noted on the Dashboard and Admin pages'
@@ -88,11 +92,11 @@ export default function LandingPage() {
         actions={
           !isAuthenticated ? (
             <>
-              <Link to="/login" onClick={() => trackLogin('navbar')} className="text-body2 font-medium text-ink hover:text-accent-orange">
-                Login
+              <Link to="/login" onClick={() => trackLogin('navbar')}>
+                <Button color="accent" variant="solid" fullWidth={false}>Login</Button>
               </Link>
-              <Link to="/register" onClick={() => trackRegister('navbar')}>
-                <Button color="accent" variant="solid" fullWidth={false}>Register</Button>
+              <Link to="/register" onClick={() => trackRegister('navbar')} className="text-body2 font-medium text-accent-orange hover:text-accent-orange-normal-hover">
+                Register
               </Link>
             </>
           ) : (
@@ -105,7 +109,7 @@ export default function LandingPage() {
         }
       >
         <a href="#home" className="text-body2 font-semibold text-accent-orange">Home</a>
-        <a href="#how-it-works" className="text-body2 font-medium text-ink hover:text-accent-orange">How It Works</a>
+        <a href="#how-it-works" className="text-body2 font-medium text-ink hover:text-accent-orange">How it Works</a>
         <a href="#for-vendors" className="text-body2 font-medium text-ink hover:text-accent-orange">For Vendors</a>
       </Navbar>
 
@@ -238,32 +242,39 @@ export default function LandingPage() {
             <div>
               <Logo size="md" withTagline className="tablet:h-16" />
               <p className="mt-4 text-body2 text-ink-muted">
-                Connecting communities with surplus food to reduce waste and fight hunger one meal at a time.
+                Sharing surplus, building community.
               </p>
             </div>
 
             <div>
               <h3 className="text-sh2 font-bold text-ink">Quick Links</h3>
+              {/* Figma (landing_page.png / -mobile.png) swaps this section
+                  from in-page anchors + auth links to About Us / Charity
+                  Verification / Contact Support. Only /contact is a route
+                  this app already links to elsewhere (previously under
+                  Policies as "Contact Us" — same destination, relabeled).
+                  /about and /charity-verification don't exist in App.jsx
+                  yet, same "real <Link>, not-yet-built page" pattern as
+                  the Policies links below — left as real <Link>s since
+                  they're reasonable future additions, not fully-built
+                  pages invented here. */}
               <ul className="mt-4 space-y-3 text-body2">
-                <li><a href="#home" className="text-ink-muted hover:text-accent-orange">Home</a></li>
-                <li><a href="#how-it-works" className="text-ink-muted hover:text-accent-orange">How It Works</a></li>
-                <li><a href="#for-vendors" className="text-ink-muted hover:text-accent-orange">For Vendors</a></li>
-                <li><Link to="/login" onClick={() => trackLogin('footer')} className="text-ink-muted hover:text-accent-orange">Login</Link></li>
-                <li><Link to="/register" onClick={() => trackRegister('footer')} className="text-ink-muted hover:text-accent-orange">Register</Link></li>
+                <li><Link to="/about" className="text-ink-muted hover:text-accent-orange">About Us</Link></li>
+                <li><Link to="/charity-verification" className="text-ink-muted hover:text-accent-orange">Charity Verification</Link></li>
+                <li><Link to="/contact" className="text-ink-muted hover:text-accent-orange">Contact Support</Link></li>
               </ul>
             </div>
 
             <div>
               <h3 className="text-sh2 font-bold text-ink">Policies</h3>
-              {/* These three routes don't exist in App.jsx yet — clicking
+              {/* These two routes don't exist in App.jsx yet — clicking
                   them currently falls through to the catch-all redirect
                   back to "/". Left in as real <Link>s since a Privacy
-                  Policy / Terms / Contact page is a reasonable future
+                  Policy / Terms of Service page is a reasonable future
                   addition, not invented as fully-built pages here. */}
               <ul className="mt-4 space-y-3 text-body2">
+                <li><Link to="/terms" className="text-ink-muted hover:text-accent-orange">Terms of Service</Link></li>
                 <li><Link to="/privacy-policy" className="text-ink-muted hover:text-accent-orange">Privacy Policy</Link></li>
-                <li><Link to="/terms" className="text-ink-muted hover:text-accent-orange">Terms &amp; Conditions</Link></li>
-                <li><Link to="/contact" className="text-ink-muted hover:text-accent-orange">Contact Us</Link></li>
               </ul>
             </div>
           </div>

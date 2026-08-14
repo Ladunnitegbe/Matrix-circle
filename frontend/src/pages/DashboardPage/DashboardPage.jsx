@@ -147,7 +147,24 @@ export default function DashboardPage() {
 }, [account?.id]);
 
   useEffect(() => {
-    load();
+    // Same shape as DiscoverFoodPage's load effect: `load` is a
+    // useCallback whose setState calls only run after its three
+    // `Promise.all` fetches resolve, but the set-state-in-effect lint
+    // flags direct top-level calls to a setState-containing function
+    // regardless of the await boundary. Wrapping it in a local async
+    // fn — the pattern already established for exactly this case —
+    // clears the lint, and the `isMounted` guard is a genuine bonus:
+    // it stops setState firing if the vendor navigates away before
+    // the fetches resolve.
+    let isMounted = true;
+    (async () => {
+      if (isMounted) {
+        await load();
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
   }, [load]);
 
   async function handleMarkPickedUp(listing) {

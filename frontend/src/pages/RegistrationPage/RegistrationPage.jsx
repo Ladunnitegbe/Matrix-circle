@@ -1,22 +1,28 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AuthLayout from '../../components/AuthLayout/AuthLayout.jsx';
 import Input from '../../components/Input/Input.jsx';
 import PhoneInput from '../../components/PhoneInput/PhoneInput.jsx';
 import LocationField from '../../components/LocationField/LocationField.jsx';
 import PasswordField from '../../components/PasswordField/PasswordField.jsx';
-import Select from '../../components/Select/Select.jsx';
 import Button from '../../components/Button/Button.jsx';
 import Alert from '../../components/Alert/Alert.jsx';
 import { register } from '../../api/auth.js';
 import { setSession } from '../../lib/authStorage.js';
 import { ApiError } from '../../lib/apiClient.js';
+import { trackEvent } from '../../lib/analytics.js';
 
-const ACCOUNT_TYPE_OPTIONS = [
+const TABS = [
   { value: 'individual', label: 'Individual' },
   { value: 'charity', label: 'Charity Organization' },
   { value: 'vendor', label: 'Vendor' },
 ];
+
+const NAME_LABEL = {
+  individual: 'Full Name/Business Name',
+  charity: 'Full Name',
+  vendor: 'Business Name',
+};
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -25,6 +31,60 @@ function digitsOnly(value) {
   return value.replace(/\D/g, '');
 }
 
+/**
+ * Registration — matches `registration_-_individual/charity/vendor(-1).png`
+ * across all three roles (each has a desktop + mobile pair, same
+ * content). Rebuilt against these; the previous version had drifted
+ * from the design in several concrete ways:
+ *
+ * 1. TAB STRIP, NOT A DROPDOWN. Every screenshot shows three
+ *    horizontal tabs ("Individual / Charity Organization / Vendor")
+ *    with a green underline on the active one — the previous version
+ *    used a `<Select label="Account Type">` dropdown instead, which
+ *    doesn't appear anywhere in the Figma. Rebuilt as real tabs.
+ *
+ * 2. ONE NAME FIELD, NOT TWO. The previous version showed a generic
+ *    "Name" input on every tab AND a separate "Business or Vendor
+ *    Name" input when Vendor was selected — two name-like fields at
+ *    once, which the Figma never shows (Vendor's tab has exactly one:
+ *    "Business Name"). Now a single field whose LABEL changes per tab
+ *    ("Full Name/Business Name" / "Full Name" / "Business Name",
+ *    matching each screenshot's literal copy) bound to one state
+ *    value. On submit, that value is sent as `name` always (the
+ *    backend's `registerBodySchema` requires it unconditionally,
+ *    even for vendors) AND additionally as `businessName` when the
+ *    role is vendor — `auth.service.ts`'s register function never
+ *    actually reads `name` for a vendor account, only `businessName`,
+ *    so sending the same single value under both keys satisfies
+ *    validation and stores the meaningful one, without asking a
+ *    vendor to type their business name twice.
+ *
+ * 3. Copy corrected to match the screenshots literally instead of
+ *    invented variants: the name placeholder is "Jane Doe" on every
+ *    tab (was "Businessname" / "Ma's Kitchen" for non-individual —
+ *    not in any screenshot); email placeholder is always
+ *    "name@example.com" (was swapping to "businessname@example.com"
+ *    outside the Individual tab — also invented); the charity field
+ *    is labeled "Reg Number" (was "Registration Number"); and the
+ *    submit button always reads "Continue" (was "Verify & Enter" for
+ *    Charity — no screenshot shows that; all three show "Continue").
+ *
+ * Field order per tab now matches each screenshot exactly: Name →
+ * Email → Phone → [Reg Number, charity only] → [Location, vendor
+ * only] → Password.
+ *
+ * Analytics: none of this existed before (zero `trackEvent` calls).
+ * `registration_viewed` fires once on mount. `registration_role_selected`
+ * fires on every tab switch — a real funnel signal (which role people
+ * consider before committing), not just decoration. `registration_attempted`
+ * / `registration_succeeded` / `registration_failed` mirror the same
+ * attempt/outcome trio already used on Claim Food's real API action,
+ * for the same reason: a page with a real backend call that can
+ * genuinely fail (duplicate email/phone, validation) deserves an
+ * outcome event, not just a page-view. None of this is part of the
+ * original Event Tracking Plan — same extension caveat as everywhere
+ * else in this project.
+ */
 export default function RegistrationPage() {
   const navigate = useNavigate();
 
@@ -34,7 +94,6 @@ export default function RegistrationPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [charityRegNumber, setCharityRegNumber] = useState('');
-  const [businessName, setBusinessName] = useState('');
   const [location, setLocation] = useState(null);
 
   const [fieldErrors, setFieldErrors] = useState({});
@@ -43,8 +102,18 @@ export default function RegistrationPage() {
 
   const isCharity = accountType === 'charity';
   const isVendor = accountType === 'vendor';
-  const submitLabel = isCharity ? 'Verify & Enter' : 'Continue';
-  const namePlaceholder = accountType === 'individual' ? 'Jane Doe' : 'Businessname';
+
+  useEffect(() => {
+    trackEvent('registration_viewed', { role: accountType });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handleTabChange(value) {
+    setAccountType(value);
+    setFieldErrors({});
+    setFormError('');
+    trackEvent('registration_role_selected', { role: value });
+  }
 
   const canSubmit =
     fullName.trim().length > 0 &&
@@ -52,7 +121,7 @@ export default function RegistrationPage() {
     phoneNumber.trim().length > 0 &&
     password.length > 0 &&
     (!isCharity || charityRegNumber.trim().length > 0) &&
-    (!isVendor || (businessName.trim().length > 0 && location !== null));
+    (!isVendor || location !== null);
 
   function validate() {
     const next = {};
@@ -67,10 +136,7 @@ export default function RegistrationPage() {
 
     if (isCharity && charityRegNumber.trim().length < 3) next.charityRegNumber = 'Enter your registration number (min 3 characters).';
 
-    if (isVendor) {
-      if (businessName.trim().length < 2) next.businessName = 'Enter your business or vendor name (min 2 characters).';
-      if (!location) next.location = 'Set your location to continue.';
-    }
+    if (isVendor && !location) next.location = 'Set your location to continue.';
 
     setFieldErrors(next);
     return Object.keys(next).length === 0;
@@ -84,17 +150,20 @@ export default function RegistrationPage() {
     const payload = { email, phoneNumber, password, role: accountType, name: fullName };
     if (isCharity) payload.charityRegNumber = charityRegNumber;
     if (isVendor) {
-      payload.businessName = businessName;
+      payload.businessName = fullName; // same single field the Figma shows once — see file header comment
       payload.coordinates = [location.lng, location.lat]; // API expects [lng, lat]
     }
 
     setSubmitting(true);
+    trackEvent('registration_attempted', { role: accountType });
     try {
       const data = await register(payload);
       setSession(data.token, data.account);
+      trackEvent('registration_succeeded', { role: data.account.role, account_id: data.account.id });
       const destination = data.account.role === 'vendor' ? '/vendor/dashboard' : '/discover';
       navigate(destination);
     } catch (err) {
+      let message = 'Something went wrong. Please try again.';
       if (err instanceof ApiError) {
         if (err.errors?.length) {
           const next = {};
@@ -103,16 +172,21 @@ export default function RegistrationPage() {
             next[key] = fieldErr.message;
           });
           setFieldErrors((prev) => ({ ...prev, ...next }));
+          message = 'Please fix the highlighted fields.';
         } else if (err.msg === 'Email already registered') {
           setFieldErrors((prev) => ({ ...prev, email: err.msg }));
+          message = err.msg;
         } else if (err.msg === 'Phone number already registered') {
           setFieldErrors((prev) => ({ ...prev, phoneNumber: err.msg }));
+          message = err.msg;
         } else {
           setFormError(err.msg);
+          message = err.msg;
         }
       } else {
-        setFormError('Something went wrong. Please try again.');
+        setFormError(message);
       }
+      trackEvent('registration_failed', { role: accountType, reason: message });
     } finally {
       setSubmitting(false);
     }
@@ -125,6 +199,24 @@ export default function RegistrationPage() {
         Join the community to share surplus meals or find available food nearby.
       </p>
 
+      <div className="mb-6 flex border-b border-border">
+        {TABS.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            onClick={() => handleTabChange(tab.value)}
+            className={[
+              'flex-1 border-b-2 pb-2.5 text-center text-body2 font-semibold transition-colors',
+              accountType === tab.value
+                ? 'border-accent-green text-accent-green'
+                : 'border-transparent text-ink-muted hover:text-ink',
+            ].join(' ')}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {formError && (
         <Alert tone="error" className="mb-4">
           {formError}
@@ -133,8 +225,8 @@ export default function RegistrationPage() {
 
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
         <Input
-          label="Name"
-          placeholder={namePlaceholder}
+          label={NAME_LABEL[accountType]}
+          placeholder="Jane Doe"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
           error={Boolean(fieldErrors.fullName)}
@@ -146,7 +238,7 @@ export default function RegistrationPage() {
         <Input
           label="Email Address"
           type="email"
-          placeholder={accountType === 'individual' ? 'name@example.com' : 'businessname@example.com'}
+          placeholder="name@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           error={Boolean(fieldErrors.email)}
@@ -164,11 +256,9 @@ export default function RegistrationPage() {
           required
         />
 
-        <Select label="Account Type" value={accountType} onChange={(e) => setAccountType(e.target.value)} options={ACCOUNT_TYPE_OPTIONS} required />
-
         {isCharity && (
           <Input
-            label="Registration Number"
+            label="Reg Number"
             placeholder="CH-123456"
             value={charityRegNumber}
             onChange={(e) => setCharityRegNumber(e.target.value)}
@@ -179,18 +269,7 @@ export default function RegistrationPage() {
         )}
 
         {isVendor && (
-          <>
-            <Input
-              label="Business or Vendor Name"
-              placeholder="Ma's Kitchen"
-              value={businessName}
-              onChange={(e) => setBusinessName(e.target.value)}
-              error={Boolean(fieldErrors.businessName)}
-              caption1={fieldErrors.businessName}
-              required
-            />
-            <LocationField value={location} onLocate={setLocation} error={Boolean(fieldErrors.location)} caption1={fieldErrors.location} required />
-          </>
+          <LocationField value={location} onLocate={setLocation} error={Boolean(fieldErrors.location)} caption1={fieldErrors.location} required />
         )}
 
         <PasswordField
@@ -205,7 +284,7 @@ export default function RegistrationPage() {
         />
 
         <Button type="submit" color="accent" variant="solid" fullWidth loading={submitting} disabled={!canSubmit}>
-          {submitLabel}
+          Continue
         </Button>
       </form>
     </AuthLayout>
