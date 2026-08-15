@@ -6,6 +6,7 @@ import { Vendor } from "./vendor.model";
 type CreateVendorProfileData = {
   accountId: string;
   businessName: string;
+  address: string;
   coordinates: [number, number];
 };
 
@@ -18,6 +19,7 @@ const createVendorProfile = async (
       {
         accountId: data.accountId,
         businessName: data.businessName,
+        address: data.address,
         location: {
           type: "Point",
           coordinates: data.coordinates,
@@ -45,7 +47,7 @@ const getVendorDashboard = async (vendorId: string) => {
 const getVendorListings = async (vendorId: string) => {
   return Listing.find({ vendorId })
     .sort({ createdAt: -1 })
-    .populate("claim.claimedBy", "name accountType");
+    .populate("claims.claimedBy", "name accountType");
 };
 
 export { createVendorProfile, getProfileByAccountId, getVendorDashboard, getVendorListings };

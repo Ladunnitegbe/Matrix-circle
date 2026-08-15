@@ -69,7 +69,7 @@ const getFeed = async (filters: FeedFilters) => {
     query.category = filters.category;
   }
 
-  return Listing.find(query).sort({ pickupByTime: 1 });
+  return Listing.find(query).sort({ pickupByTime: 1 }).populate("vendorId", "businessName address");
 };
 
 const getListingById = async (id: string) => {

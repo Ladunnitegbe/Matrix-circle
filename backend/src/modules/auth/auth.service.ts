@@ -20,6 +20,7 @@ type RegisterData = {
   role: "individual" | "charity" | "vendor";
   charityRegNumber?: string;
   businessName?: string;
+  address? : string;
   coordinates?: [number, number];
 };
 
@@ -79,9 +80,9 @@ const register = async (data: RegisterData) => {
       }
 
       if (data.role === "vendor") {
-        if (!data.businessName || !data.coordinates) {
+        if (!data.businessName || !data.coordinates || !data.address) {
           throw new BadRequestError(
-            "businessName and coordinates are required for vendor registration",
+            "businessName, address, and coordinates are required for vendor registration",
           );
         }
 
@@ -89,6 +90,7 @@ const register = async (data: RegisterData) => {
           {
             accountId: createdAccount.id,
             businessName: data.businessName,
+            address: data.address,
             coordinates: data.coordinates,
           },
           session,

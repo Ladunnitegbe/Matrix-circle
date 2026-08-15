@@ -8,6 +8,7 @@ export const registerBodySchema = z.object({
   name: z.string().min(2),
   charityRegNumber: z.string().min(3).optional(),
   businessName: z.string().min(2).optional(),
+  address: z.string().min(5).optional(),
   coordinates: z.tuple([z.number(), z.number()]).optional(),
 });
 
