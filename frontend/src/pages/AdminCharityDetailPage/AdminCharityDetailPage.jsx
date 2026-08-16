@@ -7,8 +7,9 @@ import Card from '../../components/Card/Card.jsx';
 import Badge from '../../components/Badge/Badge.jsx';
 import Button from '../../components/Button/Button.jsx';
 import Alert from '../../components/Alert/Alert.jsx';
+import Loading from '../../components/Loading/Loading.jsx';
 import ErrorState from '../../components/ErrorState/ErrorState.jsx';
-import { subscribe, getSnapshot, markApproved, rejectCharity } from '../../lib/mockCharities.js';
+import { subscribe, getSnapshot, loadPendingCharities, hasLoaded, markApproved, rejectCharity } from '../../lib/mockCharities.js';
 import { verifyCharity } from '../../api/admin.js';
 import { getAccount } from '../../lib/authStorage.js';
 import { trackEvent } from '../../lib/analytics.js';
@@ -22,17 +23,30 @@ const STATUS_LABEL = { pending: 'Pending', approved: 'Approved', rejected: 'Reje
  * Reg number / Signed up / Status, then Approve (solid) / Reject
  * (outlined) actions.
  *
+ * FETCHES ON MOUNT NOW IF NEEDED — the old version assumed the store
+ * was already populated synchronously (it was hardcoded data, so it
+ * always was). Now that the store is fetch-backed
+ * (`lib/mockCharities.js`), a direct page load or refresh on this
+ * route lands here with an empty store, which would incorrectly show
+ * "Charity Not Found" for a perfectly real charity. Now: if the
+ * store hasn't loaded this session, or has loaded but doesn't (yet)
+ * contain this specific charity, this page calls
+ * `loadPendingCharities()` itself before deciding the charity
+ * genuinely doesn't exist.
+ *
  * Approve calls the real backend endpoint
  * (`PATCH /api/admin/charities/:userId/verify` — documented, admin-
  * gated, and wired here via `api/admin.js`). It is NOT mocked. On
- * success, the local `mockCharities` store is updated to reflect the
- * new status (there's no `GET` endpoint to re-fetch from).
+ * success, the local store is updated to reflect the new status —
+ * there's still no `GET /admin/charities/:id` to re-fetch a single
+ * charity from, only the pending-list endpoint.
  *
  * Reject stays local-only — no backend endpoint exists for rejecting
  * a charity yet. See `lib/mockCharities.js` for the full breakdown of
  * what's real vs. mocked here.
  *
- * Analytics: `charity_review_viewed` fires once on load, and
+ * Analytics: `charity_review_viewed` fires once the charity is
+ * actually available (after any needed fetch resolves), and
  * `charity_approved` / `charity_rejected` fire on action. None of
  * this is part of the original Event Tracking Plan (that plan didn't
  * cover an admin surface at all) — added as reasonable, consistently
@@ -46,15 +60,70 @@ export default function AdminCharityDetailPage() {
   const charities = useSyncExternalStore(subscribe, getSnapshot);
   const charity = charities.find((c) => c.id === charityId);
 
+  const [phase, setPhase] = useState('loading'); // loading | error | success
+  const [errorMessage, setErrorMessage] = useState('');
   const [approving, setApproving] = useState(false);
   const [approveError, setApproveError] = useState('');
 
   useEffect(() => {
-    if (charity) {
+    let cancelled = false;
+
+    async function ensureLoaded() {
+      if (hasLoaded() && getSnapshot().some((c) => c.id === charityId)) {
+        setPhase('success');
+        return;
+      }
+      setPhase('loading');
+      try {
+        await loadPendingCharities();
+        if (cancelled) return;
+        setPhase('success');
+      } catch (err) {
+        if (cancelled) return;
+        setErrorMessage(err instanceof ApiError ? err.msg : err.message);
+        setPhase('error');
+      }
+    }
+
+    ensureLoaded();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [charityId]);
+
+  useEffect(() => {
+    if (phase === 'success' && charity) {
       trackEvent('charity_review_viewed', { admin_id: account?.id, charity_id: charity.id, status: charity.status });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [charity?.id]);
+  }, [phase, charity?.id]);
+
+  if (phase === 'loading') {
+    return (
+      <DashboardLayout renderSidebar={(onClose) => <AdminNav onCloseMobile={onClose} />}>
+        <div className="mx-auto max-w-4xl">
+          <h1 className="text-h4 font-bold text-ink">Admin</h1>
+          <div className="mt-4">
+            <Loading title="Loading charity…" description="Fetching this charity's verification details" />
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (phase === 'error') {
+    return (
+      <DashboardLayout renderSidebar={(onClose) => <AdminNav onCloseMobile={onClose} />}>
+        <div className="mx-auto max-w-4xl">
+          <h1 className="text-h4 font-bold text-ink">Admin</h1>
+          <div className="mt-4">
+            <ErrorState title="Connection Interrupted" description={errorMessage} actionLabel="Try Again" onAction={() => window.location.reload()} />
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (!charity) {
     return (
