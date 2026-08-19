@@ -1,39 +1,70 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout/DashboardLayout.jsx';
 import AdminNav from '../../components/AdminNav/AdminNav.jsx';
 import EmptyState from '../../components/EmptyState/EmptyState.jsx';
+import Loading from '../../components/Loading/Loading.jsx';
+import ErrorState from '../../components/ErrorState/ErrorState.jsx';
 import { ShieldIcon } from '../../components/Icon/Icon.jsx';
-import { subscribe, getSnapshot } from '../../lib/mockCharities.js';
+import { subscribe, getSnapshot, loadPendingCharities } from '../../lib/mockCharities.js';
 import { getAccount } from '../../lib/authStorage.js';
 import { trackEvent } from '../../lib/analytics.js';
+import { ApiError } from '../../lib/apiClient.js';
 
 /**
  * Admin — Review Charity Orgs. Matches the "Admin" table screenshot:
  * dark green header row, Charity / Reg number / Sign up / Review
  * columns. Shows only `pending` charities — approved/rejected ones
- * move to Summary. The list itself comes from `mockCharities`,
- * because there's no `GET` endpoint yet to list charities pending
- * review — not because charity verification is unbuilt. Approving a
- * charity (on the detail page this links to) calls the real backend
- * endpoint; see `lib/mockCharities.js` for the full breakdown.
+ * move to Summary.
  *
- * Analytics: `admin_review_viewed` fires once on load (same
- * fire-once-on-mount pattern as `profile_viewed`), and
+ * REAL DATA NOW: the list comes from `GET /admin/charities/pending`
+ * (via `loadPendingCharities` in `lib/mockCharities.js`), which
+ * didn't exist when this page was first built — it used to read a
+ * hardcoded local list, which is also what caused a 500 on approve
+ * (fake ids reaching a real endpoint; see that file's header comment
+ * for the full trace). Approving a charity (on the detail page this
+ * links to) calls the real backend endpoint too — see
+ * `lib/mockCharities.js` for the full breakdown of what's real vs.
+ * still local-only (rejecting a charity still has no backend support
+ * at all).
+ *
+ * Analytics: `admin_review_viewed` now fires after the real fetch
+ * resolves (was fire-on-mount against hardcoded data before — moved
+ * so `pending_count` reflects what actually loaded, not a guess).
  * `charity_review_opened` fires when an admin clicks through to a
  * specific charity. Neither is part of the original Event Tracking
- * Plan — that plan doesn't cover an admin surface at all — these are
- * reasonable, consistently-named extensions, same caveat already
- * noted on `charity_approved`/`charity_rejected` in
- * AdminCharityDetailPage.
+ * Plan — same extension caveat already noted on
+ * `charity_approved`/`charity_rejected` in AdminCharityDetailPage.
  */
 export default function AdminReviewPage() {
   const account = getAccount();
   const charities = useSyncExternalStore(subscribe, getSnapshot);
   const pending = charities.filter((c) => c.status === 'pending');
 
+  const [phase, setPhase] = useState('loading'); // loading | error | success
+  const [errorMessage, setErrorMessage] = useState('');
+
   useEffect(() => {
-    trackEvent('admin_review_viewed', { admin_id: account?.id, pending_count: pending.length });
+    let cancelled = false;
+
+    async function load() {
+      setPhase('loading');
+      try {
+        await loadPendingCharities();
+        if (cancelled) return;
+        setPhase('success');
+        trackEvent('admin_review_viewed', { admin_id: account?.id, pending_count: getSnapshot().filter((c) => c.status === 'pending').length });
+      } catch (err) {
+        if (cancelled) return;
+        setErrorMessage(err instanceof ApiError ? err.msg : err.message);
+        setPhase('error');
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -43,7 +74,21 @@ export default function AdminReviewPage() {
         <h1 className="text-h4 font-bold text-ink">Admin</h1>
 
         <div className="mt-4">
-          {pending.length === 0 ? (
+          {phase === 'loading' && (
+            <Loading title="Loading pending charities…" description="Fetching charities awaiting verification" />
+          )}
+
+          {phase === 'error' && (
+            <ErrorState
+              title="Connection Interrupted"
+              description={errorMessage}
+              actionLabel="Try Again"
+              onAction={() => window.location.reload()}
+            />
+          )}
+
+          {phase === 'success' && (
+            pending.length === 0 ? (
             <EmptyState
               icon={<ShieldIcon width={26} height={26} />}
               title="Nothing to Review"
@@ -72,10 +117,10 @@ export default function AdminReviewPage() {
                 </div>
               ))}
             </div>
+            )
           )}
         </div>
       </div>
     </DashboardLayout>
   );
 }
-

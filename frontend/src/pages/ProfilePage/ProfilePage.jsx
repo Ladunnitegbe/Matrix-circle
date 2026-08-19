@@ -24,6 +24,27 @@ import { trackEvent } from '../../lib/analytics.js';
  * displays the vendor's real data, fetched for real, with nothing
  * invented.
  *
+ * EDITABLE LOCATION FOR VENDORS — INVESTIGATED, RULED OUT, DO NOT
+ * REVISIT WITHOUT A BACKEND CHANGE: it looks tempting to reuse
+ * `PATCH /users/me/location` (`user.route.ts`) the same way
+ * RecipientProfilePage does, since that endpoint has no role guard on
+ * it (`authenticateUser` only, no `authorizePermissions(...)`). But
+ * confirmed directly against the backend source
+ * (`user.controller.ts` → `user.service.ts`: `updateLocation`), it
+ * runs `User.findOneAndUpdate({ accountId }, ...)` — and per
+ * `auth.service.ts`'s registration flow, a `User` document is only
+ * ever created for `individual`/`charity` roles. Vendors get a
+ * completely separate `Vendor` document instead
+ * (`createVendorProfile`). So a vendor calling this endpoint always
+ * hits `User.findOneAndUpdate` finding NOTHING, which throws
+ * `NotFoundError("User profile not found")` — a clean 404, every
+ * single time, for every vendor, no exceptions. This isn't a role
+ * restriction that could be reasoned around on the frontend; it's a
+ * structural fact about the two roles living in different
+ * collections. A real fix needs a new backend endpoint (e.g. `PATCH
+ * /vendors/me/location`) that does not currently exist. Until one
+ * does, Location here has to stay read-only.
+ *
  * Location: the API only returns raw GeoJSON coordinates
  * (`{ type: "Point", coordinates: [lng, lat] }`), not a resolved
  * address — same gap noted elsewhere in this project (Discover Food's
@@ -31,6 +52,13 @@ import { trackEvent } from '../../lib/analytics.js';
  * Figma's placeholder-looking "Vendor location" text, since real data
  * exists and hiding it behind static placeholder copy would be worse
  * than showing what's actually available.
+ *
+ * ADDRESS — new, real field: `vendor.model.ts` now has a required
+ * `address` string (vendor registration was updated to collect it —
+ * see the auth flow), separate from the GeoJSON coordinates above.
+ * `GET /vendors/me` returns it, so it's shown here as its own
+ * read-only row rather than left out — same "show real data, nothing
+ * invented" reasoning as everything else on this page.
  *
  * Header now matches every other vendor page (Dashboard, Confirm
  * Pickup, Create List): "• Jane's Kitchen" alongside the title. The
@@ -109,6 +137,7 @@ export default function ProfilePage() {
           {phase === 'success' && (
             <div className="flex flex-col gap-4">
               <Input label="Business Name" value={vendor.businessName} readOnly />
+              <Input label="Address" value={vendor.address || 'Not set'} readOnly />
               <Input label="Location" value={locationLabel} readOnly />
             </div>
           )}

@@ -1,17 +1,31 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import DashboardLayout from '../../components/DashboardLayout/DashboardLayout.jsx';
 import AdminNav from '../../components/AdminNav/AdminNav.jsx';
 import EmptyState from '../../components/EmptyState/EmptyState.jsx';
+import Loading from '../../components/Loading/Loading.jsx';
+import ErrorState from '../../components/ErrorState/ErrorState.jsx';
 import { ShieldIcon } from '../../components/Icon/Icon.jsx';
-import { subscribe, getSnapshot } from '../../lib/mockCharities.js';
+import { subscribe, getSnapshot, loadPendingCharities, hasLoaded } from '../../lib/mockCharities.js';
 import { getAccount } from '../../lib/authStorage.js';
 import { trackEvent } from '../../lib/analytics.js';
+import { ApiError } from '../../lib/apiClient.js';
 
 /**
  * Admin — Summary. Matches the second "Admin" table screenshot: same
  * columns plus a green "Status" column. Shows charities that have
  * already been decided (approved or rejected) — the reviewed history,
  * as distinct from Review's pending queue.
+ *
+ * STILL LOCAL-ONLY, unlike Review: there's no backend endpoint that
+ * returns decided charities — `GET /admin/charities/pending` (the one
+ * real list endpoint) is scoped to pending only. So "decided" here
+ * means "decided in this browser session," not a durable record — see
+ * `lib/mockCharities.js`'s header comment for the full reasoning.
+ * This page still fetches on mount (only if the store hasn't loaded
+ * yet this session — no need to refetch if Review already did) purely
+ * so a charity that was approved elsewhere is correctly inferred as
+ * 'approved' rather than just missing, which requires the pending
+ * list to have loaded at least once.
  *
  * Analytics: `admin_summary_viewed` fires once on load, same
  * extension caveat as `admin_review_viewed` in AdminReviewPage.
@@ -24,8 +38,35 @@ export default function AdminSummaryPage() {
   const charities = useSyncExternalStore(subscribe, getSnapshot);
   const decided = charities.filter((c) => c.status !== 'pending');
 
+  const [phase, setPhase] = useState(hasLoaded() ? 'success' : 'loading');
+  const [errorMessage, setErrorMessage] = useState('');
+
   useEffect(() => {
-    trackEvent('admin_summary_viewed', { admin_id: account?.id, decided_count: decided.length });
+    let cancelled = false;
+
+    async function load() {
+      if (hasLoaded()) {
+        setPhase('success');
+        trackEvent('admin_summary_viewed', { admin_id: account?.id, decided_count: getSnapshot().filter((c) => c.status !== 'pending').length });
+        return;
+      }
+      setPhase('loading');
+      try {
+        await loadPendingCharities();
+        if (cancelled) return;
+        setPhase('success');
+        trackEvent('admin_summary_viewed', { admin_id: account?.id, decided_count: getSnapshot().filter((c) => c.status !== 'pending').length });
+      } catch (err) {
+        if (cancelled) return;
+        setErrorMessage(err instanceof ApiError ? err.msg : err.message);
+        setPhase('error');
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -35,7 +76,21 @@ export default function AdminSummaryPage() {
         <h1 className="text-h4 font-bold text-ink">Admin</h1>
 
         <div className="mt-4">
-          {decided.length === 0 ? (
+          {phase === 'loading' && (
+            <Loading title="Loading charity history…" description="Fetching your review history" />
+          )}
+
+          {phase === 'error' && (
+            <ErrorState
+              title="Connection Interrupted"
+              description={errorMessage}
+              actionLabel="Try Again"
+              onAction={() => window.location.reload()}
+            />
+          )}
+
+          {phase === 'success' && (
+            decided.length === 0 ? (
             <EmptyState
               icon={<ShieldIcon width={26} height={26} />}
               title="No Decisions Yet"
@@ -58,6 +113,7 @@ export default function AdminSummaryPage() {
                 </div>
               ))}
             </div>
+            )
           )}
         </div>
       </div>
