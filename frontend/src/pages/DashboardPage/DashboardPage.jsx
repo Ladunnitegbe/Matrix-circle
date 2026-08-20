@@ -90,6 +90,9 @@ import { useToast } from '../../components/Toast/ToastProvider.jsx';
  * to confirm-pickup) — same extension caveat already noted on the
  * admin pages' analytics.
  */
+
+const VENDOR_LISTINGS_POLL_INTERVAL_MS = 5000;
+
 const STATUS_META = {
   active: { label: 'Active', className: 'bg-accent-green-light text-accent-green-dark' },
   claimed: { label: 'Claimed', className: 'bg-accent-orange-light text-accent-orange-dark' },
@@ -186,6 +189,34 @@ export default function DashboardPage() {
     };
   }, [load]);
 
+  useEffect(() => {
+  if (phase !== 'success') return undefined;
+
+  let cancelled = false;
+
+  const refreshListings = async () => {
+    try {
+      const listingsData = await getVendorListings();
+
+      if (!cancelled) {
+        setListings(listingsData.listings);
+      }
+    } catch {
+      // Keep the current dashboard data and retry on the next poll.
+    }
+  };
+
+  const interval = setInterval(
+    refreshListings,
+    VENDOR_LISTINGS_POLL_INTERVAL_MS
+  );
+
+  return () => {
+    cancelled = true;
+    clearInterval(interval);
+  };
+}, [phase]);
+
   async function handleMarkPickedUp(listing) {
     const pendingClaim = listing.claims?.find((c) => c.status === 'pending');
     if (!pendingClaim?.claimedBy?._id) {
@@ -209,7 +240,12 @@ export default function DashboardPage() {
     }
   }
 
-  const activeNow = listings.filter((l) => l.state === 'active').length;
+  const activeNow = listings.reduce(
+  (total, listing) =>
+    total +
+    (listing.state === 'active' ? listing.remainingQuantity : 0),
+  0
+);
 
   return (
     <DashboardLayout renderSidebar={(onClose) => <AppNav onCloseMobile={onClose} />}>
@@ -264,7 +300,7 @@ export default function DashboardPage() {
                         <div className="min-w-0">
                           <p className="text-body1 font-bold text-ink">{listing.itemDescription}</p>
                           <p className="mt-0.5 text-caption text-ink-faint">
-                            {listing.quantity} portions · {listing.price === 'free' ? 'Free' : `₦${listing.price}`} · Pickup by{' '}
+                            {listing.remainingQuantity} of {listing.quantity} portions remaining · {listing.price === 'free' ? 'Free' : `₦${listing.price}`} · Pickup by{' '}
                             {formatPickupTime(listing.pickupByTime)}
                           </p>
                           {pendingClaim?.claimedBy?.name && (
@@ -275,17 +311,18 @@ export default function DashboardPage() {
                         </div>
                         <div className="flex flex-shrink-0 items-center gap-3">
                           <StatusPill state={listing.state} />
-                          {listing.state === 'claimed' && (
-                            <Button
-                              color="secondary"
-                              variant="solid"
-                              loading={confirmingId === listing._id}
-                              disabled={confirmingId === listing._id}
-                              onClick={() => handleMarkPickedUp(listing)}
-                            >
-                              Mark Picked Up
-                            </Button>
-                          )}
+                          {pendingClaim && (
+  <Button
+    color="secondary"
+    variant="solid"
+    loading={confirmingId === listing._id}
+    disabled={confirmingId === listing._id}
+    onClick={() => handleMarkPickedUp(listing)}
+  >
+    Mark Picked Up
+  </Button>
+)}
+                          
                         </div>
                       </div>
                       );

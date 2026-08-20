@@ -73,6 +73,10 @@ function formatCountdown(totalSeconds) {
   return `${mm}:${ss}`;
 }
 
+function getPendingClaim(listing) {
+  return listing?.claims?.find((claim) => claim.status === 'pending') || null;
+}
+
 export default function ReleaseClaimPage() {
   const { listingId } = useParams();
   const location = useLocation();
@@ -80,10 +84,15 @@ export default function ReleaseClaimPage() {
   const { showToast } = useToast();
   const account = getAccount();
 
-  const [listing, setListing] = useState(location.state?.listing || null);
-  const [secondsLeft, setSecondsLeft] = useState(() =>
-    location.state?.listing?.claim?.holdExpiresAt ? secondsUntil(location.state.listing.claim.holdExpiresAt) : 0,
-  );
+ const [listing, setListing] = useState(location.state?.listing || null);
+
+const [secondsLeft, setSecondsLeft] = useState(() => {
+  const pendingClaim = getPendingClaim(location.state?.listing);
+  return pendingClaim?.holdExpiresAt
+    ? secondsUntil(pendingClaim.holdExpiresAt)
+    : 0;
+});
+
   const hasViewedRef = useRef(false);
   const hasEndedRef = useRef(false); // guards against firing hold_expired/redirecting twice
 
@@ -95,9 +104,12 @@ export default function ReleaseClaimPage() {
         const data = await getListing(listingId);
         if (cancelled) return;
         setListing(data.listing);
-        if (data.listing.claim?.holdExpiresAt) {
-          setSecondsLeft(secondsUntil(data.listing.claim.holdExpiresAt));
-        }
+
+const pendingClaim = getPendingClaim(data.listing);
+
+if (pendingClaim?.holdExpiresAt) {
+  setSecondsLeft(secondsUntil(pendingClaim.holdExpiresAt));
+}
 
         if (!hasViewedRef.current) {
           hasViewedRef.current = true;
