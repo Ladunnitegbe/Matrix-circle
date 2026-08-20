@@ -24,12 +24,35 @@ import { useToast } from '../../components/Toast/ToastProvider.jsx';
  * way to know which listings had a pending claim, and no working
  * confirm-pickup endpoint. Both now exist:
  *   - `GET /vendors/listings` (already used by the Dashboard) returns
- *     ALL of this vendor's listings, any state, with `claim`
- *     populated — filtered here to `state === 'claimed'` for the
- *     pending queue.
+ *     ALL of this vendor's listings, any state, with `claims`
+ *     (plural — populated on `claims.claimedBy`) — filtered here to
+ *     `state === 'claimed'` for the pending queue.
  *   - `PATCH /listings/:id/confirm-pickup` (also already wired for
  *     the Dashboard's "Mark Picked Up") is the same real call used
  *     here.
+ *
+ * THREE BUGS FOUND AND FIXED HERE, all the same root cause as
+ * DashboardPage's: this file assumed a singular `claim` field that
+ * the real API never returns — only `claims`, a plural array (a
+ * listing can be claimed, lapse, and get re-claimed).
+ *   1. The pending-queue filter was `l.state === 'claimed' && l.claim`
+ *      — `l.claim` is always `undefined`, so this filtered OUT every
+ *      single listing, always, regardless of real pending claims.
+ *      "Nothing showing in Confirm Pickup" traces directly to this
+ *      line, not a rendering issue. Now derives
+ *      `l.claims?.find((c) => c.status === 'pending')` per listing
+ *      and keeps only listings where that's found.
+ *   2. `PendingCard` read `listing.claim.holdExpiresAt` /
+ *      `.claimantType` / `.claimedAt` — all would have thrown
+ *      (`Cannot read properties of undefined`) the moment a listing
+ *      actually reached this component, once bug #1 stopped silently
+ *      hiding everything. Each listing passed to `PendingCard` now
+ *      carries its derived `pendingClaim` object instead.
+ *   3. `handleConfirm` called `confirmPickup(listing._id)` with no
+ *      claimant id — the backend (`claim.validation.ts`:
+ *      `confirmPickupBodySchema`) requires `claimantUserId` in the
+ *      body. Now pulls `pendingClaim.claimedBy._id` (populated by
+ *      `getVendorListings`, same as Dashboard) and sends it.
  *
  * "Claimed by" shows the claimant type (Individual/Charity) — from
  * `claim.claimantType`, which the backend sets to the claimant's
@@ -80,7 +103,8 @@ function formatCountdown(totalSeconds) {
 const CLAIMANT_LABEL = { individual: 'Individual', charity: 'Charity' };
 
 function PendingCard({ listing, confirming, onConfirm, onExpire }) {
-  const [secondsLeft, setSecondsLeft] = useState(() => secondsUntil(listing.claim.holdExpiresAt));
+  const { pendingClaim } = listing;
+  const [secondsLeft, setSecondsLeft] = useState(() => secondsUntil(pendingClaim.holdExpiresAt));
   const hasExpiredRef = useRef(false);
 
   useEffect(() => {
@@ -91,7 +115,7 @@ function PendingCard({ listing, confirming, onConfirm, onExpire }) {
       }
       return undefined;
     }
-    const interval = setInterval(() => setSecondsLeft(secondsUntil(listing.claim.holdExpiresAt)), 1000);
+    const interval = setInterval(() => setSecondsLeft(secondsUntil(pendingClaim.holdExpiresAt)), 1000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsLeft]);
@@ -103,12 +127,12 @@ function PendingCard({ listing, confirming, onConfirm, onExpire }) {
         <div className="flex items-center justify-between border-b border-border py-2.5">
           <span className="text-body2 font-bold text-ink">Claimed by</span>
           <span className="text-body2 text-ink-muted">
-            {CLAIMANT_LABEL[listing.claim.claimantType] || listing.claim.claimantType}
+            {CLAIMANT_LABEL[pendingClaim.claimantType] || pendingClaim.claimantType}
           </span>
         </div>
         <div className="flex items-center justify-between border-b border-border py-2.5">
           <span className="text-body2 font-bold text-ink">Claimed at</span>
-          <span className="text-body2 text-ink-muted">{formatTime(listing.claim.claimedAt)}</span>
+          <span className="text-body2 text-ink-muted">{formatTime(pendingClaim.claimedAt)}</span>
         </div>
         <div className="flex items-center justify-between py-2.5">
           <span className="text-body2 font-bold text-ink">Hold expires in</span>
@@ -145,7 +169,9 @@ export default function ConfirmPickupPage() {
     setErrorMessage('');
     try {
       const [vendorData, listingsData] = await Promise.all([getVendorMe(), getVendorListings()]);
-      const stillPending = listingsData.listings.filter((l) => l.state === 'claimed' && l.claim);
+      const stillPending = listingsData.listings
+        .map((l) => ({ ...l, pendingClaim: l.claims?.find((c) => c.status === 'pending') }))
+        .filter((l) => l.state === 'claimed' && l.pendingClaim);
       setBusinessName(vendorData.vendor.businessName);
       setPending(stillPending);
       setPhase('success');
@@ -164,7 +190,7 @@ export default function ConfirmPickupPage() {
   async function handleConfirm(listing) {
     setConfirmingId(listing._id);
     try {
-      await confirmPickup(listing._id);
+      await confirmPickup(listing._id, listing.pendingClaim.claimedBy?._id);
       trackEvent('picked_up_confirmed', { vendor_id: account?.id, listing_id: listing._id, source: 'confirm_pickup_page' });
       setPending((prev) => prev.filter((l) => l._id !== listing._id));
       showToast({ tone: 'success', message: `${listing.itemDescription} confirmed as picked up.` });

@@ -50,6 +50,25 @@ import { useToast } from '../../components/Toast/ToastProvider.jsx';
  *    nothing else in the app does), Active Now uses the neutral
  *    `secondary` scale instead of an invented olive.
  *
+ * CLAIM DATA FIX: this used to read `listing.claim?.claimedBy?.name`
+ * (singular). The real API response never has a `claim` field —
+ * only `claims`, a plural array (a listing can be claimed, lapse, and
+ * get re-claimed), populated on `claims.claimedBy` by
+ * `getVendorListings`. That mismatch meant "Claimed by ___" silently
+ * never rendered. Now derives the current pending entry as
+ * `listing.claims?.find((c) => c.status === 'pending')` per listing.
+ *
+ * CONFIRM-PICKUP FIX: `handleMarkPickedUp` used to call
+ * `confirmPickup(listing._id)` with no claimant id — but the backend
+ * (`claim.validation.ts`: `confirmPickupBodySchema`) requires
+ * `claimantUserId` in the body. Every "Mark Picked Up" click was
+ * 400ing on Zod validation, which meant a claim could never be closed
+ * out through this UI — only the 15-minute hold expiring via the
+ * server's cron job ever cleared it, which is also why a recipient
+ * repeatedly hitting "you already have a pending claim" couldn't
+ * resolve it by having the vendor confirm pickup. Now pulls
+ * `claimedBy._id` from that same pending `claims` entry and sends it.
+ *
  * Mark Picked Up calls the real `PATCH /listings/:id/confirm-pickup`
  * (also previously assumed unavailable, also now real — see
  * `api/listings.js`). Success/failure surface via the shared
@@ -168,9 +187,15 @@ export default function DashboardPage() {
   }, [load]);
 
   async function handleMarkPickedUp(listing) {
+    const pendingClaim = listing.claims?.find((c) => c.status === 'pending');
+    if (!pendingClaim?.claimedBy?._id) {
+      showToast({ tone: 'error', message: 'No pending claimant found for this listing.' });
+      return;
+    }
+
     setConfirmingId(listing._id);
     try {
-      await confirmPickup(listing._id);
+      await confirmPickup(listing._id, pendingClaim.claimedBy._id);
       setListings((prev) => prev.map((l) => (l._id === listing._id ? { ...l, state: 'picked_up' } : l)));
       trackEvent('picked_up_confirmed', { vendor_id: account?.id, listing_id: listing._id, source: 'dashboard' });
       showToast({ tone: 'success', message: `${listing.itemDescription} marked as picked up.` });
@@ -229,7 +254,9 @@ export default function DashboardPage() {
                 <div className="overflow-hidden rounded-lg border border-border">
                   <div className="bg-secondary px-4 py-3 text-body2 font-bold text-white">Status</div>
                   <div className="flex flex-col divide-y divide-border">
-                    {listings.map((listing) => (
+                    {listings.map((listing) => {
+                      const pendingClaim = listing.claims?.find((c) => c.status === 'pending');
+                      return (
                       <div
                         key={listing._id}
                         className="flex flex-col gap-3 px-4 py-3 tablet:flex-row tablet:items-center tablet:justify-between"
@@ -240,9 +267,9 @@ export default function DashboardPage() {
                             {listing.quantity} portions · {listing.price === 'free' ? 'Free' : `₦${listing.price}`} · Pickup by{' '}
                             {formatPickupTime(listing.pickupByTime)}
                           </p>
-                          {listing.claim?.claimedBy?.name && (
+                          {pendingClaim?.claimedBy?.name && (
                             <p className="mt-0.5 text-caption font-semibold text-accent-green">
-                              Claimed by {listing.claim.claimedBy.name}
+                              Claimed by {pendingClaim.claimedBy.name}
                             </p>
                           )}
                         </div>
@@ -261,7 +288,8 @@ export default function DashboardPage() {
                           )}
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
