@@ -1,23 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout/DashboardLayout.jsx';
 import AppNav from '../../components/AppNav/AppNav.jsx';
 import Loading from '../../components/Loading/Loading.jsx';
 import EmptyState from '../../components/EmptyState/EmptyState.jsx';
 import ErrorState from '../../components/ErrorState/ErrorState.jsx';
-import Button from '../../components/Button/Button.jsx';
 import { ForkKnifeIcon } from '../../components/Icon/Icon.jsx';
 import { getVendorMe, getVendorDashboard, getVendorListings } from '../../api/vendors.js';
-import { confirmPickup } from '../../api/listings.js';
 import { getAccount } from '../../lib/authStorage.js';
 import { trackEvent } from '../../lib/analytics.js';
 import { ApiError } from '../../lib/apiClient.js';
-import { useToast } from '../../components/Toast/ToastProvider.jsx';
 
 /**
  * Vendor Dashboard — matches `dashboard_-_vendor_-desktop/mobile.png`:
  * business name in the header, three impact stat cards, and a
- * current-listings table with per-row status + a "Mark Picked Up"
- * action on claimed listings.
+ * current-listings table with per-row status. Pickup confirmation is
+ * handled on the dedicated Confirm Pickup page.
  *
  * DATA SOURCE — this is a real rebuild, not the earlier client-side
  * "combine two endpoints and hope" version. The backend has since
@@ -26,11 +24,9 @@ import { useToast } from '../../components/Toast/ToastProvider.jsx';
  *   - `GET /vendors/dashboard` → real `{ claimed, discarded }` counts
  *     (`vendor.service.ts`: `getVendorDashboard`)
  *   - `GET /vendors/listings` → ALL of this vendor's listings, any
- *     state, with `claim.claimedBy` populated (`getVendorListings`)
+ *     state, with pending claimant data populated on `claims`.
  * "Active Now" isn't part of that stats payload, so it's derived
- * client-side by counting `state === 'active'` from the listings
- * response — that's real data too, just aggregated on this side
- * instead of the server's.
+ * client-side by summing `remainingQuantity` for active listings.
  *
  * TWO DELIBERATE DEVIATIONS FROM THE FIGMA, stated plainly:
  *
@@ -58,37 +54,15 @@ import { useToast } from '../../components/Toast/ToastProvider.jsx';
  * never rendered. Now derives the current pending entry as
  * `listing.claims?.find((c) => c.status === 'pending')` per listing.
  *
- * CONFIRM-PICKUP FIX: `handleMarkPickedUp` used to call
- * `confirmPickup(listing._id)` with no claimant id — but the backend
- * (`claim.validation.ts`: `confirmPickupBodySchema`) requires
- * `claimantUserId` in the body. Every "Mark Picked Up" click was
- * 400ing on Zod validation, which meant a claim could never be closed
- * out through this UI — only the 15-minute hold expiring via the
- * server's cron job ever cleared it, which is also why a recipient
- * repeatedly hitting "you already have a pending claim" couldn't
- * resolve it by having the vendor confirm pickup. Now pulls
- * `claimedBy._id` from that same pending `claims` entry and sends it.
+ * PICKUP FLOW: the Dashboard does not confirm pickups. When a pending
+ * claim exists, the row links the vendor to the dedicated Confirm Pickup
+ * page, where the claimant, hold timer, and confirmation action are shown.
+ * This keeps pickup confirmation in one place and matches the intended
+ * vendor workflow.
  *
- * Mark Picked Up calls the real `PATCH /listings/:id/confirm-pickup`
- * (also previously assumed unavailable, also now real — see
- * `api/listings.js`). Success/failure surface via the shared
- * `Toast`/`ToastProvider` — built earlier in this project but not
- * wired into the app anywhere yet, so `<ToastProvider>` now wraps
- * `App` (see App.jsx) as the one necessary supporting change.
- *
- * Analytics: `dashboard_viewed` fires on successful load (same
- * fire-in-the-load-function placement as `profile_viewed` in
- * ProfilePage), with the same stats shown on screen. Marking a
- * listing picked up here fires `picked_up_confirmed` — the same event
- * name ConfirmPickupPage's "Confirm Pickup" button fires, since both
- * trigger the literal same backend action
- * (`PATCH /listings/:id/confirm-pickup`); a `source` property
- * ('dashboard' vs. 'confirm_pickup_page') distinguishes which surface
- * it was triggered from without inventing a second event for one
- * action. Neither event is part of the original Event Tracking Plan
- * (it doesn't cover the vendor Dashboard's stats or this entry point
- * to confirm-pickup) — same extension caveat already noted on the
- * admin pages' analytics.
+ * Analytics: `dashboard_viewed` fires on successful load with the
+ * current stats. Pickup confirmation analytics are owned by the
+ * dedicated Confirm Pickup page.
  */
 
 const VENDOR_LISTINGS_POLL_INTERVAL_MS = 5000;
@@ -129,14 +103,12 @@ function StatCard({ value, label, tone }) {
 }
 
 export default function DashboardPage() {
-  const { showToast } = useToast();
   const account = getAccount();
   const [phase, setPhase] = useState('loading'); // loading | error | success
   const [businessName, setBusinessName] = useState('');
   const [stats, setStats] = useState({ claimed: 0, discarded: 0 });
   const [listings, setListings] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
-  const [confirmingId, setConfirmingId] = useState(null);
 
  const load = useCallback(async () => {
   try {
@@ -217,28 +189,6 @@ export default function DashboardPage() {
   };
 }, [phase]);
 
-  async function handleMarkPickedUp(listing) {
-    const pendingClaim = listing.claims?.find((c) => c.status === 'pending');
-    if (!pendingClaim?.claimedBy?._id) {
-      showToast({ tone: 'error', message: 'No pending claimant found for this listing.' });
-      return;
-    }
-
-    setConfirmingId(listing._id);
-    try {
-      await confirmPickup(listing._id, pendingClaim.claimedBy._id);
-      setListings((prev) => prev.map((l) => (l._id === listing._id ? { ...l, state: 'picked_up' } : l)));
-      trackEvent('picked_up_confirmed', { vendor_id: account?.id, listing_id: listing._id, source: 'dashboard' });
-      showToast({ tone: 'success', message: `${listing.itemDescription} marked as picked up.` });
-    } catch (err) {
-      showToast({
-        tone: 'error',
-        message: err instanceof ApiError ? err.msg : 'Could not confirm pickup. Please try again.',
-      });
-    } finally {
-      setConfirmingId(null);
-    }
-  }
 
   const activeNow = listings.reduce(
   (total, listing) =>
@@ -310,19 +260,15 @@ export default function DashboardPage() {
                           )}
                         </div>
                         <div className="flex flex-shrink-0 items-center gap-3">
-                          <StatusPill state={listing.state} />
+                          <StatusPill state={pendingClaim ? 'claimed' : listing.state} />
                           {pendingClaim && (
-  <Button
-    color="secondary"
-    variant="solid"
-    loading={confirmingId === listing._id}
-    disabled={confirmingId === listing._id}
-    onClick={() => handleMarkPickedUp(listing)}
-  >
-    Mark Picked Up
-  </Button>
-)}
-                          
+                            <Link
+                              to="/vendor/confirm-pickup"
+                              className="text-caption font-bold text-secondary underline underline-offset-2 hover:no-underline"
+                            >
+                              Confirm Pickup
+                            </Link>
+                          )}
                         </div>
                       </div>
                       );

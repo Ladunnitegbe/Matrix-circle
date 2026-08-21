@@ -91,7 +91,7 @@ const CATEGORIES = [
   { value: 'free_donation', label: 'Free' },
 ];
 
-const POLL_INTERVAL_MS = 45000;
+const POLL_INTERVAL_MS = 5000;
 const VIEW_TRACK_DELAY_MS = 5000;
 
 // `GET /listings` accepts an optional `maxDistanceKm` (API_DOCUMENTATION.md
@@ -302,10 +302,12 @@ export default function DiscoverFoodPage() {
                         <div className="min-w-0">
                           <p className="truncate text-sh2 font-bold text-ink">{listing.itemDescription}</p>
                           <p className="mt-0.5 text-caption text-ink-muted">
-                            {listing.price === 'free' ? 'Free' : `₦${listing.price}`} ·{' '}
-                            <span className="font-semibold text-ink">{listing.quantity}</span> portions
-                          </p>
-                        </div>
+  {listing.price === 'free' ? 'Free' : `₦${listing.price}`} ·{' '}
+  <span className="font-semibold text-ink">
+    {listing.remainingQuantity}
+  </span>{' '}
+  {listing.remainingQuantity === 1 ? 'portion' : 'portions'} available
+</p>                 </div>
                       </div>
                       <div className="mt-3 flex items-center gap-2">
                         {distanceLabel && <Pill>{distanceLabel}</Pill>}

@@ -89,6 +89,11 @@ function formatDistance(meters) {
   return meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)}km`;
 }
 
+function getVendorProfile(listing) {
+  if (!listing?.vendorId || typeof listing.vendorId !== 'object') return null;
+  return listing.vendorId;
+}
+
 function getInitials(name) {
   return (name || '')
     .trim()
@@ -106,6 +111,7 @@ export default function ClaimFoodPage() {
 
   const [phase, setPhase] = useState('loading'); // loading | error | blocked | success
   const [listing, setListing] = useState(null);
+  const [vendor, setVendor] = useState(null);
   const [claimant, setClaimant] = useState(null); // { name, accountType, charityVerifiedAt } — only fetched for charity accounts
   const [distanceM, setDistanceM] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
@@ -126,6 +132,7 @@ export default function ClaimFoodPage() {
         if (cancelled) return;
 
         setListing(listingData.listing);
+        setVendor(getVendorProfile(listingData.listing));
 
         const blocked = isCharity && !userData.user.charityVerifiedAt;
         if (blocked) {
@@ -249,6 +256,20 @@ export default function ClaimFoodPage() {
             <ForkKnifeIcon width={32} height={32} />
           </div>
           <p className="mt-4 text-body1 font-bold text-ink">{listing.itemDescription}</p>
+
+          {vendor && (
+            <div className="mt-4 rounded-lg bg-secondary-light p-3">
+              <p className="text-caption font-bold uppercase tracking-wide text-ink-faint">
+                Vendor
+              </p>
+              <p className="mt-1 text-body1 font-bold text-ink">
+                {vendor.businessName}
+              </p>
+              <p className="mt-1 text-body2 text-ink-muted">
+                {vendor.address}
+              </p>
+            </div>
+          )}
 
           <div className="mt-3 flex gap-2">
             <Pill>{listing.category.replace('_', ' ')}</Pill>

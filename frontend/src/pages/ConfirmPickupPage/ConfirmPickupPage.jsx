@@ -19,40 +19,21 @@ import { useToast } from '../../components/Toast/ToastProvider.jsx';
  * "Hold expires in" countdown / Confirm Pickup button), plus the same
  * business-name header used on the Dashboard.
  *
- * REBUILT ON REAL DATA — nothing here is mocked anymore. The previous
- * version ran on local mock state because, at the time, there was no
- * way to know which listings had a pending claim, and no working
- * confirm-pickup endpoint. Both now exist:
- *   - `GET /vendors/listings` (already used by the Dashboard) returns
- *     ALL of this vendor's listings, any state, with `claims`
- *     (plural — populated on `claims.claimedBy`) — filtered here to
- *     `state === 'claimed'` for the pending queue.
- *   - `PATCH /listings/:id/confirm-pickup` (also already wired for
- *     the Dashboard's "Mark Picked Up") is the same real call used
- *     here.
+ * REBUILT ON REAL DATA — nothing here is mocked anymore. The page
+ * reads the vendor's real listings and derives the pending queue from
+ * the `claims` array returned by `GET /vendors/listings`. A listing can
+ * remain `active` when it has multiple portions and only one has been
+ * claimed, so the queue must be based on the existence of a `pending`
+ * claim rather than `listing.state === 'claimed'`.
  *
- * THREE BUGS FOUND AND FIXED HERE, all the same root cause as
- * DashboardPage's: this file assumed a singular `claim` field that
- * the real API never returns — only `claims`, a plural array (a
- * listing can be claimed, lapse, and get re-claimed).
- *   1. The pending-queue filter was `l.state === 'claimed' && l.claim`
- *      — `l.claim` is always `undefined`, so this filtered OUT every
- *      single listing, always, regardless of real pending claims.
- *      "Nothing showing in Confirm Pickup" traces directly to this
- *      line, not a rendering issue. Now derives
- *      `l.claims?.find((c) => c.status === 'pending')` per listing
- *      and keeps only listings where that's found.
- *   2. `PendingCard` read `listing.claim.holdExpiresAt` /
- *      `.claimantType` / `.claimedAt` — all would have thrown
- *      (`Cannot read properties of undefined`) the moment a listing
- *      actually reached this component, once bug #1 stopped silently
- *      hiding everything. Each listing passed to `PendingCard` now
- *      carries its derived `pendingClaim` object instead.
- *   3. `handleConfirm` called `confirmPickup(listing._id)` with no
- *      claimant id — the backend (`claim.validation.ts`:
- *      `confirmPickupBodySchema`) requires `claimantUserId` in the
- *      body. Now pulls `pendingClaim.claimedBy._id` (populated by
- *      `getVendorListings`, same as Dashboard) and sends it.
+ * `PATCH /listings/:id/confirm-pickup` is the real confirmation endpoint.
+ * The claimant id is taken from `pendingClaim.claimedBy._id`, which is
+ * populated by the vendor listings endpoint.
+ *
+ * The pending card uses the derived `pendingClaim` object for its
+ * claimant type, claimed time, and real server-side hold expiration.
+ * The page also polls every 5 seconds so a newly claimed listing appears
+ * without requiring the vendor to refresh the page manually.
  *
  * "Claimed by" shows the claimant type (Individual/Charity) — from
  * `claim.claimantType`, which the backend sets to the claimant's
@@ -70,14 +51,10 @@ import { useToast } from '../../components/Toast/ToastProvider.jsx';
  * hold's state server-side, so this just re-syncs the UI to that
  * rather than trusting the client-side countdown as ground truth.
  *
- * Analytics: `confirm_pickup_viewed` fires once per successful load
- * (same fire-in-the-load-function placement as `dashboard_viewed`),
+ * Analytics: `confirm_pickup_viewed` fires once per successful load,
  * with the pending count shown on screen. Confirming a pickup fires
- * `picked_up_confirmed` — the SAME event name the Dashboard's "Mark
- * Picked Up" button fires, since both trigger the literal same
- * backend action (`PATCH /listings/:id/confirm-pickup`); the
- * `source: 'confirm_pickup_page'` property (vs. `'dashboard'` there)
- * is what tells the two entry points apart. The previous placeholder
+ * `picked_up_confirmed` with `source: 'confirm_pickup_page'`.
+ * The previous placeholder
  * `claim_id` property has been dropped entirely — a claim is embedded
  * directly on the listing document here, not a separate record with
  * its own id, so there was never a real value to put there.
@@ -101,6 +78,7 @@ function formatCountdown(totalSeconds) {
 }
 
 const CLAIMANT_LABEL = { individual: 'Individual', charity: 'Charity' };
+const CONFIRM_PICKUP_POLL_INTERVAL_MS = 5000;
 
 function PendingCard({ listing, confirming, onConfirm, onExpire }) {
   const { pendingClaim } = listing;
@@ -171,7 +149,7 @@ export default function ConfirmPickupPage() {
       const [vendorData, listingsData] = await Promise.all([getVendorMe(), getVendorListings()]);
       const stillPending = listingsData.listings
         .map((l) => ({ ...l, pendingClaim: l.claims?.find((c) => c.status === 'pending') }))
-        .filter((l) => l.state === 'claimed' && l.pendingClaim);
+        .filter((l) => l.pendingClaim);
       setBusinessName(vendorData.vendor.businessName);
       setPending(stillPending);
       setPhase('success');
@@ -186,6 +164,34 @@ export default function ConfirmPickupPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (phase !== 'success') return undefined;
+
+    let cancelled = false;
+
+    const refreshPending = async () => {
+      try {
+        const listingsData = await getVendorListings();
+        const stillPending = listingsData.listings
+          .map((l) => ({ ...l, pendingClaim: l.claims?.find((c) => c.status === 'pending') }))
+          .filter((l) => l.pendingClaim);
+
+        if (!cancelled) {
+          setPending(stillPending);
+        }
+      } catch {
+        // Keep the current queue and retry on the next polling cycle.
+      }
+    };
+
+    const interval = setInterval(refreshPending, CONFIRM_PICKUP_POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [phase]);
 
   async function handleConfirm(listing) {
     setConfirmingId(listing._id);
