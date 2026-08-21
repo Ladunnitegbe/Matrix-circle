@@ -15,3 +15,7 @@ export const feedQuerySchema = z.object({
   category: z.enum(["cooked_meal", "baked_goods", "raw_produce", "free_donation"]).optional(),
   maxDistanceKm: z.coerce.number().optional().default(5),
 });
+
+export const listingIdParamsSchema = z.object({
+  id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid listing ID format"),
+});

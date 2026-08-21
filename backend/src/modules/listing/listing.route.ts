@@ -1,8 +1,15 @@
 import { Router } from "express";
 import { create, feed, getOne } from "./listing.controller";
-import { authenticateUser, authorizePermissions } from "../../common/middleware/isAuth";
+import {
+  authenticateUser,
+  authorizePermissions,
+} from "../../common/middleware/isAuth";
 import validateRequest from "../../common/middleware/validation-request";
-import { createListingBodySchema, feedQuerySchema } from "./listing.validation";
+import {
+  createListingBodySchema,
+  feedQuerySchema,
+  listingIdParamsSchema,
+} from "./listing.validation";
 
 const router = Router();
 
@@ -11,10 +18,21 @@ router.post(
   authenticateUser,
   authorizePermissions("vendor"),
   validateRequest({ body: createListingBodySchema }),
-  create
+  create,
 );
 
-router.get("/", authenticateUser, validateRequest({ query: feedQuerySchema }), feed);
-router.get("/:id", authenticateUser, getOne);
+router.get(
+  "/",
+  authenticateUser,
+  validateRequest({ query: feedQuerySchema }),
+  feed,
+);
+
+router.get(
+  "/:id",
+  authenticateUser,
+  validateRequest({ params: listingIdParamsSchema }),
+  getOne,
+);
 
 export default router;
