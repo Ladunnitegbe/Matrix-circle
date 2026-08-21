@@ -11,59 +11,6 @@ import { getAccount } from '../../lib/authStorage.js';
 import { trackEvent } from '../../lib/analytics.js';
 import { ApiError } from '../../lib/apiClient.js';
 
-/**
- * Vendor Dashboard — matches `dashboard_-_vendor_-desktop/mobile.png`:
- * business name in the header, three impact stat cards, and a
- * current-listings table with per-row status. Pickup confirmation is
- * handled on the dedicated Confirm Pickup page.
- *
- * DATA SOURCE — this is a real rebuild, not the earlier client-side
- * "combine two endpoints and hope" version. The backend has since
- * shipped what the previous implementation's comments said didn't
- * exist:
- *   - `GET /vendors/dashboard` → real `{ claimed, discarded }` counts
- *     (`vendor.service.ts`: `getVendorDashboard`)
- *   - `GET /vendors/listings` → ALL of this vendor's listings, any
- *     state, with pending claimant data populated on `claims`.
- * "Active Now" isn't part of that stats payload, so it's derived
- * client-side by summing `remainingQuantity` for active listings.
- *
- * TWO DELIBERATE DEVIATIONS FROM THE FIGMA, stated plainly:
- *
- * 1. "Today's Impact" → "Your Impact". `getVendorDashboard` counts
- *    are lifetime totals — the backend does no date filtering at all
- *    (`Listing.countDocuments({ vendorId, state: 'picked_up' })`,
- *    no `createdAt` range). Labeling a lifetime count "Today's" would
- *    misrepresent real data, so the copy was changed instead of
- *    silently faking a day-scoped number. Revert if a day-scoped
- *    stats endpoint ships, or if literal Figma copy is preferred
- *    despite the mismatch.
- * 2. Stat card colors: the Figma uses three distinct hues (green /
- *    maroon / olive). `tailwind.config.js` only defines two accent
- *    colors app-wide (`accent-green`, `accent-orange`) plus the
- *    neutral `secondary` scale — no third hue exists anywhere in the
- *    design system. Rather than hardcode an off-palette hex (which
- *    nothing else in the app does), Active Now uses the neutral
- *    `secondary` scale instead of an invented olive.
- *
- * CLAIM DATA FIX: this used to read `listing.claim?.claimedBy?.name`
- * (singular). The real API response never has a `claim` field —
- * only `claims`, a plural array (a listing can be claimed, lapse, and
- * get re-claimed), populated on `claims.claimedBy` by
- * `getVendorListings`. That mismatch meant "Claimed by ___" silently
- * never rendered. Now derives the current pending entry as
- * `listing.claims?.find((c) => c.status === 'pending')` per listing.
- *
- * PICKUP FLOW: the Dashboard does not confirm pickups. When a pending
- * claim exists, the row links the vendor to the dedicated Confirm Pickup
- * page, where the claimant, hold timer, and confirmation action are shown.
- * This keeps pickup confirmation in one place and matches the intended
- * vendor workflow.
- *
- * Analytics: `dashboard_viewed` fires on successful load with the
- * current stats. Pickup confirmation analytics are owned by the
- * dedicated Confirm Pickup page.
- */
 
 const VENDOR_LISTINGS_POLL_INTERVAL_MS = 5000;
 
@@ -141,15 +88,7 @@ export default function DashboardPage() {
 }, [account?.id]);
 
   useEffect(() => {
-    // Same shape as DiscoverFoodPage's load effect: `load` is a
-    // useCallback whose setState calls only run after its three
-    // `Promise.all` fetches resolve, but the set-state-in-effect lint
-    // flags direct top-level calls to a setState-containing function
-    // regardless of the await boundary. Wrapping it in a local async
-    // fn — the pattern already established for exactly this case —
-    // clears the lint, and the `isMounted` guard is a genuine bonus:
-    // it stops setState firing if the vendor navigates away before
-    // the fetches resolve.
+    
     let isMounted = true;
     (async () => {
       if (isMounted) {
@@ -166,20 +105,30 @@ export default function DashboardPage() {
 
   let cancelled = false;
 
-  const refreshListings = async () => {
+  const refreshDashboard = async () => {
     try {
-      const listingsData = await getVendorListings();
+      const [dashboardData, listingsData] = await Promise.all([
+        getVendorDashboard(),
+        getVendorListings(),
+      ]);
 
-      if (!cancelled) {
-        setListings(listingsData.listings);
-      }
+      if (cancelled) return;
+
+      // Update the "Items Claimed" and "Items Discarded" cards
+      setStats({
+        claimed: dashboardData.claimed,
+        discarded: dashboardData.discarded,
+      });
+
+      // Update the current listings table
+      setListings(listingsData.listings);
     } catch {
       // Keep the current dashboard data and retry on the next poll.
     }
   };
 
   const interval = setInterval(
-    refreshListings,
+    refreshDashboard,
     VENDOR_LISTINGS_POLL_INTERVAL_MS
   );
 
@@ -188,7 +137,6 @@ export default function DashboardPage() {
     clearInterval(interval);
   };
 }, [phase]);
-
 
   const activeNow = listings.reduce(
   (total, listing) =>
