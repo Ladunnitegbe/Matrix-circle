@@ -71,8 +71,15 @@ const confirmPickup = async (vendorAccountId: string, listingId: string, claiman
   }
 
   claimEntry.status = "picked_up";
-  await listing.save();
 
+  // Only mark the whole listing "picked_up" once EVERY portion is
+  // accounted for — no stock left, and no other claim still pending.
+  const anyStillPending = listing.claims.some((c) => c.status === "pending");
+  if (listing.remainingQuantity === 0 && !anyStillPending) {
+    listing.state = "picked_up";
+  }
+
+  await listing.save();
   return listing;
 };
 

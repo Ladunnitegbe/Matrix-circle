@@ -16,10 +16,7 @@ const app = express();
 app.set("trust proxy", 1);
 
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://matrix-circle.vercel.app",
-];
+
 
 app.use(express.json());
 app.use(sanitizeInputs);
@@ -27,16 +24,16 @@ app.use(morgan("dev"));
 app.use(generalLimiter);
 app.use(helmet());
 
+const allowedOrigins = (process.env.ALLOWED_ORIGIN ?? "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      return callback(new Error("Not allowed by CORS"));
+      if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+      else callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
   })

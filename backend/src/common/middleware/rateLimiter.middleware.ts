@@ -9,24 +9,25 @@ const rateLimitHandler = (req: Request, res: Response): void => {
 };
 
 export const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,   
-  max: 100,                    
-  standardHeaders: true,       
-  legacyHeaders: false,        
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === "OPTIONS",
   handler: rateLimitHandler,
 });
 
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,                     
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   handler: rateLimitHandler,
 });
 
 export const claimLimiter = rateLimit({
-  windowMs: 60 * 1000,         
-  max: 5,                      
+  windowMs: 60 * 1000,
+  max: 5,
   standardHeaders: true,
   legacyHeaders: false,
   handler: rateLimitHandler,
