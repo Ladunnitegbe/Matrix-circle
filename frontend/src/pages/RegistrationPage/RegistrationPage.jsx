@@ -73,6 +73,23 @@ function digitsOnly(value) {
  * Email → Phone → [Reg Number, charity only] → [Location, vendor
  * only] → Password.
  *
+ * ADDRESS FIELD — ADDED, NOT IN ANY SCREENSHOT: `auth.service.ts`
+ * (commit `b3dd138`) now enforces `address` as required for vendor
+ * registration at runtime — `if (!data.businessName ||
+ * !data.coordinates || !data.address) throw BadRequestError(...)` —
+ * even though `auth.validation.ts`'s Zod schema marks it
+ * `.optional()` (the schema is shared across all three roles; the
+ * per-role requirement lives in the service layer instead). This page
+ * never collected or sent `address` at all before this change, which
+ * meant every single vendor registration attempt was failing with
+ * that 400, unconditionally — not an edge case, a total block on
+ * vendor signup. No Figma frame shows this field since it postdates
+ * the registration screenshots this page was built against; placed
+ * before Location (a street address logically precedes pinning exact
+ * coordinates) as a reasonable default, worth confirming against a
+ * real design once one exists. Validated to the same `min(5)` the
+ * backend's Zod schema enforces.
+ *
  * Analytics: none of this existed before (zero `trackEvent` calls).
  * `registration_viewed` fires once on mount. `registration_role_selected`
  * fires on every tab switch — a real funnel signal (which role people
@@ -94,6 +111,7 @@ export default function RegistrationPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [charityRegNumber, setCharityRegNumber] = useState('');
+  const [address, setAddress] = useState('');
   const [location, setLocation] = useState(null);
 
   const [fieldErrors, setFieldErrors] = useState({});
@@ -121,7 +139,7 @@ export default function RegistrationPage() {
     phoneNumber.trim().length > 0 &&
     password.length > 0 &&
     (!isCharity || charityRegNumber.trim().length > 0) &&
-    (!isVendor || location !== null);
+    (!isVendor || (address.trim().length > 0 && location !== null));
 
   function validate() {
     const next = {};
@@ -136,6 +154,7 @@ export default function RegistrationPage() {
 
     if (isCharity && charityRegNumber.trim().length < 3) next.charityRegNumber = 'Enter your registration number (min 3 characters).';
 
+    if (isVendor && address.trim().length < 5) next.address = 'Enter your business address (min 5 characters).';
     if (isVendor && !location) next.location = 'Set your location to continue.';
 
     setFieldErrors(next);
@@ -151,6 +170,7 @@ export default function RegistrationPage() {
     if (isCharity) payload.charityRegNumber = charityRegNumber;
     if (isVendor) {
       payload.businessName = fullName; // same single field the Figma shows once — see file header comment
+      payload.address = address;
       payload.coordinates = [location.lng, location.lat]; // API expects [lng, lat]
     }
 
@@ -269,6 +289,19 @@ export default function RegistrationPage() {
         )}
 
         {isVendor && (
+          <Input
+            label="Business Address"
+            placeholder="12 Allen Avenue, Ikeja, Lagos"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            error={Boolean(fieldErrors.address)}
+            caption1={fieldErrors.address}
+            autoComplete="street-address"
+            required
+          />
+        )}
+
+        {isVendor && (
           <LocationField value={location} onLocate={setLocation} error={Boolean(fieldErrors.location)} caption1={fieldErrors.location} required />
         )}
 
@@ -290,3 +323,4 @@ export default function RegistrationPage() {
     </AuthLayout>
   );
 }
+  

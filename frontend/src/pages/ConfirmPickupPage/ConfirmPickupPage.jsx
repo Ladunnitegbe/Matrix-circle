@@ -19,17 +19,21 @@ import { useToast } from '../../components/Toast/ToastProvider.jsx';
  * "Hold expires in" countdown / Confirm Pickup button), plus the same
  * business-name header used on the Dashboard.
  *
- * REBUILT ON REAL DATA — nothing here is mocked anymore. The previous
- * version ran on local mock state because, at the time, there was no
- * way to know which listings had a pending claim, and no working
- * confirm-pickup endpoint. Both now exist:
- *   - `GET /vendors/listings` (already used by the Dashboard) returns
- *     ALL of this vendor's listings, any state, with `claim`
- *     populated — filtered here to `state === 'claimed'` for the
- *     pending queue.
- *   - `PATCH /listings/:id/confirm-pickup` (also already wired for
- *     the Dashboard's "Mark Picked Up") is the same real call used
- *     here.
+ * REBUILT ON REAL DATA — nothing here is mocked anymore. The page
+ * reads the vendor's real listings and derives the pending queue from
+ * the `claims` array returned by `GET /vendors/listings`. A listing can
+ * remain `active` when it has multiple portions and only one has been
+ * claimed, so the queue must be based on the existence of a `pending`
+ * claim rather than `listing.state === 'claimed'`.
+ *
+ * `PATCH /listings/:id/confirm-pickup` is the real confirmation endpoint.
+ * The claimant id is taken from `pendingClaim.claimedBy._id`, which is
+ * populated by the vendor listings endpoint.
+ *
+ * The pending card uses the derived `pendingClaim` object for its
+ * claimant type, claimed time, and real server-side hold expiration.
+ * The page also polls every 5 seconds so a newly claimed listing appears
+ * without requiring the vendor to refresh the page manually.
  *
  * "Claimed by" shows the claimant type (Individual/Charity) — from
  * `claim.claimantType`, which the backend sets to the claimant's
@@ -47,14 +51,10 @@ import { useToast } from '../../components/Toast/ToastProvider.jsx';
  * hold's state server-side, so this just re-syncs the UI to that
  * rather than trusting the client-side countdown as ground truth.
  *
- * Analytics: `confirm_pickup_viewed` fires once per successful load
- * (same fire-in-the-load-function placement as `dashboard_viewed`),
+ * Analytics: `confirm_pickup_viewed` fires once per successful load,
  * with the pending count shown on screen. Confirming a pickup fires
- * `picked_up_confirmed` — the SAME event name the Dashboard's "Mark
- * Picked Up" button fires, since both trigger the literal same
- * backend action (`PATCH /listings/:id/confirm-pickup`); the
- * `source: 'confirm_pickup_page'` property (vs. `'dashboard'` there)
- * is what tells the two entry points apart. The previous placeholder
+ * `picked_up_confirmed` with `source: 'confirm_pickup_page'`.
+ * The previous placeholder
  * `claim_id` property has been dropped entirely — a claim is embedded
  * directly on the listing document here, not a separate record with
  * its own id, so there was never a real value to put there.
@@ -78,9 +78,11 @@ function formatCountdown(totalSeconds) {
 }
 
 const CLAIMANT_LABEL = { individual: 'Individual', charity: 'Charity' };
+const CONFIRM_PICKUP_POLL_INTERVAL_MS = 5000;
 
 function PendingCard({ listing, confirming, onConfirm, onExpire }) {
-  const [secondsLeft, setSecondsLeft] = useState(() => secondsUntil(listing.claim.holdExpiresAt));
+  const { pendingClaim } = listing;
+  const [secondsLeft, setSecondsLeft] = useState(() => secondsUntil(pendingClaim.holdExpiresAt));
   const hasExpiredRef = useRef(false);
 
   useEffect(() => {
@@ -91,7 +93,7 @@ function PendingCard({ listing, confirming, onConfirm, onExpire }) {
       }
       return undefined;
     }
-    const interval = setInterval(() => setSecondsLeft(secondsUntil(listing.claim.holdExpiresAt)), 1000);
+    const interval = setInterval(() => setSecondsLeft(secondsUntil(pendingClaim.holdExpiresAt)), 1000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsLeft]);
@@ -103,12 +105,12 @@ function PendingCard({ listing, confirming, onConfirm, onExpire }) {
         <div className="flex items-center justify-between border-b border-border py-2.5">
           <span className="text-body2 font-bold text-ink">Claimed by</span>
           <span className="text-body2 text-ink-muted">
-            {CLAIMANT_LABEL[listing.claim.claimantType] || listing.claim.claimantType}
+            {CLAIMANT_LABEL[pendingClaim.claimantType] || pendingClaim.claimantType}
           </span>
         </div>
         <div className="flex items-center justify-between border-b border-border py-2.5">
           <span className="text-body2 font-bold text-ink">Claimed at</span>
-          <span className="text-body2 text-ink-muted">{formatTime(listing.claim.claimedAt)}</span>
+          <span className="text-body2 text-ink-muted">{formatTime(pendingClaim.claimedAt)}</span>
         </div>
         <div className="flex items-center justify-between py-2.5">
           <span className="text-body2 font-bold text-ink">Hold expires in</span>
@@ -145,7 +147,9 @@ export default function ConfirmPickupPage() {
     setErrorMessage('');
     try {
       const [vendorData, listingsData] = await Promise.all([getVendorMe(), getVendorListings()]);
-      const stillPending = listingsData.listings.filter((l) => l.state === 'claimed' && l.claim);
+      const stillPending = listingsData.listings
+        .map((l) => ({ ...l, pendingClaim: l.claims?.find((c) => c.status === 'pending') }))
+        .filter((l) => l.pendingClaim);
       setBusinessName(vendorData.vendor.businessName);
       setPending(stillPending);
       setPhase('success');
@@ -161,10 +165,38 @@ export default function ConfirmPickupPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (phase !== 'success') return undefined;
+
+    let cancelled = false;
+
+    const refreshPending = async () => {
+      try {
+        const listingsData = await getVendorListings();
+        const stillPending = listingsData.listings
+          .map((l) => ({ ...l, pendingClaim: l.claims?.find((c) => c.status === 'pending') }))
+          .filter((l) => l.pendingClaim);
+
+        if (!cancelled) {
+          setPending(stillPending);
+        }
+      } catch {
+        // Keep the current queue and retry on the next polling cycle.
+      }
+    };
+
+    const interval = setInterval(refreshPending, CONFIRM_PICKUP_POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [phase]);
+
   async function handleConfirm(listing) {
     setConfirmingId(listing._id);
     try {
-      await confirmPickup(listing._id);
+      await confirmPickup(listing._id, listing.pendingClaim.claimedBy?._id);
       trackEvent('picked_up_confirmed', { vendor_id: account?.id, listing_id: listing._id, source: 'confirm_pickup_page' });
       setPending((prev) => prev.filter((l) => l._id !== listing._id));
       showToast({ tone: 'success', message: `${listing.itemDescription} confirmed as picked up.` });

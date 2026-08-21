@@ -33,7 +33,16 @@ export function claimListing(id) {
  * Real endpoint (`PATCH /api/listings/:id/confirm-pickup`, mounted via
  * `claim.route.ts`) — not mocked. Used by the vendor Dashboard's
  * "Mark Picked Up" action on a claimed listing.
+ *
+ * `claimantUserId` is REQUIRED by the backend
+ * (`claim.validation.ts`: `confirmPickupBodySchema`), not optional —
+ * this used to be called with no body at all, which meant every
+ * confirm-pickup attempt 400'd on Zod validation, silently on the
+ * vendor's screen, with no way to actually close out a claim early.
+ * Callers get this from the pending entry in that listing's `claims`
+ * array (`claims.claimedBy._id` — populated by `getVendorListings`),
+ * not invented client-side.
  */
-export function confirmPickup(id) {
-  return protectedRequest(`/listings/${id}/confirm-pickup`, { method: 'PATCH' });
+export function confirmPickup(id, claimantUserId) {
+  return protectedRequest(`/listings/${id}/confirm-pickup`, { method: 'PATCH', body: { claimantUserId } });
 }
