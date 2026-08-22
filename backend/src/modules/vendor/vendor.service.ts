@@ -37,8 +37,6 @@ const getProfileByAccountId = async (accountId: string) => {
   return vendor;
 };
 
-
-
 const getVendorDashboard = async (vendorId: string) => {
   const vendorObjectId = new Types.ObjectId(vendorId);
 
@@ -48,12 +46,8 @@ const getVendorDashboard = async (vendorId: string) => {
     {
       $group: {
         _id: null,
-        claimedItems: {
-          $sum: { $cond: [{ $in: ["$claims.status", ["pending", "picked_up"]] }, 1, 0] },
-        },
-        pickedUpItems: {
-          $sum: { $cond: [{ $eq: ["$claims.status", "picked_up"] }, 1, 0] },
-        },
+        claimedItems: { $sum: { $cond: [{ $in: ["$claims.status", ["pending", "picked_up"]] }, 1, 0] } },
+        pickedUpItems: { $sum: { $cond: [{ $eq: ["$claims.status", "picked_up"] }, 1, 0] } },
       },
     },
   ]);
